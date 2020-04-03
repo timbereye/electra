@@ -161,11 +161,18 @@ class ModelRunner(object):
             iterations_per_loop=config.iterations_per_loop,
             num_shards=config.num_tpu_cores,
             per_host_input_for_training=is_per_host)
-        run_config = tf.estimator.tpu.RunConfig(
+        # run_config = tf.estimator.tpu.RunConfig(
+        #     cluster=tpu_cluster_resolver,
+        #     model_dir=config.model_dir,
+        #     save_checkpoints_steps=config.save_checkpoints_steps,
+        #     save_checkpoints_secs=None,
+        #     tpu_config=tpu_config)
+        run_config = contrib_tpu.RunConfig(
             cluster=tpu_cluster_resolver,
+            master=None,
             model_dir=config.model_dir,
+            keep_checkpoint_max=0,
             save_checkpoints_steps=config.save_checkpoints_steps,
-            save_checkpoints_secs=None,
             tpu_config=tpu_config)
 
         if self._config.do_train:

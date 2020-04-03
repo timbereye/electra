@@ -152,11 +152,15 @@ class ModelRunner(object):
             #     config.tpu_name, zone=config.tpu_zone, project=config.gcp_project)
             tpu_cluster_resolver = contrib_cluster_resolver.TPUClusterResolver(
                 config.tpu_name, zone=config.tpu_zone, project=config.gcp_project)
-        tpu_config = tf.estimator.tpu.TPUConfig(
+        # tpu_config = tf.estimator.tpu.TPUConfig(
+        #     iterations_per_loop=config.iterations_per_loop,
+        #     num_shards=config.num_tpu_cores,
+        #     per_host_input_for_training=is_per_host,
+        #     tpu_job_name=config.tpu_job_name)
+        tpu_config = contrib_tpu.TPUConfig(
             iterations_per_loop=config.iterations_per_loop,
             num_shards=config.num_tpu_cores,
-            per_host_input_for_training=is_per_host,
-            tpu_job_name=config.tpu_job_name)
+            per_host_input_for_training=is_per_host)
         run_config = tf.estimator.tpu.RunConfig(
             cluster=tpu_cluster_resolver,
             model_dir=config.model_dir,

@@ -148,6 +148,9 @@ class ModelRunner(object):
         if config.use_tpu and config.tpu_name:
             tpu_cluster_resolver = tf.distribute.cluster_resolver.TPUClusterResolver(
                 config.tpu_name, zone=config.tpu_zone, project=config.gcp_project)
+            print("use tpu")
+        else:
+            print("do not use tpu")
         tpu_config = tf.estimator.tpu.TPUConfig(
             iterations_per_loop=config.iterations_per_loop,
             num_shards=config.num_tpu_cores,

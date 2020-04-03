@@ -32,8 +32,6 @@ from model import modeling
 from model import optimization
 from util import training_utils
 from util import utils
-from tensorflow.contrib import tpu as contrib_tpu
-from tensorflow.contrib import cluster_resolver as contrib_cluster_resolver
 
 
 class FinetuningModel(object):
@@ -148,31 +146,18 @@ class ModelRunner(object):
         is_per_host = tf.estimator.tpu.InputPipelineConfig.PER_HOST_V2
         tpu_cluster_resolver = None
         if config.use_tpu and config.tpu_name:
-            # tpu_cluster_resolver = tf.distribute.cluster_resolver.TPUClusterResolver(
-            #     config.tpu_name, zone=config.tpu_zone, project=config.gcp_project)
-            tpu_cluster_resolver = contrib_cluster_resolver.TPUClusterResolver(
+            tpu_cluster_resolver = tf.distribute.cluster_resolver.TPUClusterResolver(
                 config.tpu_name, zone=config.tpu_zone, project=config.gcp_project)
-        # tpu_config = tf.estimator.tpu.TPUConfig(
-        #     iterations_per_loop=config.iterations_per_loop,
-        #     num_shards=config.num_tpu_cores,
-        #     per_host_input_for_training=is_per_host,
-        #     tpu_job_name=config.tpu_job_name)
-        tpu_config = contrib_tpu.TPUConfig(
+        tpu_config = tf.estimator.tpu.TPUConfig(
             iterations_per_loop=config.iterations_per_loop,
             num_shards=config.num_tpu_cores,
-            per_host_input_for_training=is_per_host)
-        # run_config = tf.estimator.tpu.RunConfig(
-        #     cluster=tpu_cluster_resolver,
-        #     model_dir=config.model_dir,
-        #     save_checkpoints_steps=config.save_checkpoints_steps,
-        #     save_checkpoints_secs=None,
-        #     tpu_config=tpu_config)
-        run_config = contrib_tpu.RunConfig(
+            per_host_input_for_training=is_per_host,
+            tpu_job_name=config.tpu_job_name)
+        run_config = tf.estimator.tpu.RunConfig(
             cluster=tpu_cluster_resolver,
-            master=None,
             model_dir=config.model_dir,
-            keep_checkpoint_max=0,
             save_checkpoints_steps=config.save_checkpoints_steps,
+            save_checkpoints_secs=None,
             tpu_config=tpu_config)
 
         if self._config.do_train:

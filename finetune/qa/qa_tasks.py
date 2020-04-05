@@ -518,6 +518,11 @@ class QATask(task.Task):
                 logits=answerable_logit)
             losses += answerable_loss * self.config.answerable_weight
 
+        from finetune.qa.rl_loss import rl_loss
+
+        loss_rl = rl_loss(start_logits, end_logits, start_positions, end_positions, sample_num=4)
+        losses += 0.5 * loss_rl
+
         return losses, dict(
             loss=losses,
             start_logits=start_logits,

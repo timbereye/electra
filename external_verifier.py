@@ -101,10 +101,8 @@ def simple_replace_with_null_odds():
                 merge_prediction[q_ids] = ''
         return merge_prediction
 
-    min_threshold = min(list(answer_null_odds.values()) + list(null_odds.values()))
-    max_threshold = max(list(answer_null_odds.values()) + list(null_odds.values()))
     for alpha in np.arange(0., 1., 0.1):
-        for threshold in np.arange(min_threshold, max_threshold, 0.1):
+        for threshold in np.arange(-5, 0, 0.1):
             merge_prediction = threshold_merge(alpha, threshold)
             exact_scores, f1_scores = get_raw_scores(dev, merge_prediction)
             exact = sum(exact_scores.values()) / len(exact_scores)

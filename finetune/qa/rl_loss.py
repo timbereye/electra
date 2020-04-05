@@ -77,10 +77,10 @@ def greedy_sample_with_logits(sls, els):
     els: end logits
     """
     max_seq_len = tf.shape(sls)[1]
-    start_sample = tf.cast(tf.multinomial(sls, 1), tf.int32)
+    start_sample = tf.random.categorical(sls, 1, dtype=tf.int32)
     sps_mask = tf.sequence_mask(tf.squeeze(start_sample) - 1, maxlen=max_seq_len, dtype=tf.float32)  # start end 是可以重复的
     els = els * (1 - sps_mask) - 1e30 * sps_mask
-    end_sample = tf.cast(tf.multinomial(els, 1), tf.int32)
+    end_sample = tf.random.categorical(els, 1, dtype=tf.int32)
 
     return start_sample, end_sample
 
@@ -157,7 +157,7 @@ def rl_loss(start_logits, end_logits, answer_start, answer_end, sample_num=1):
     guess_start_sample = []
     guess_end_sample = []
     for _ in range(sample_num):
-        start_sample, end_sample = greedy_sample_with_logits(start_logits, end_logits)
+        start_sample, end_sample = greedy_sample_with_logits(start_log_probs, end_log_probs)
         guess_start_sample.append(start_sample)
         guess_end_sample.append(end_sample)
 
@@ -175,5 +175,5 @@ def rl_loss(start_logits, end_logits, answer_start, answer_end, sample_num=1):
     # However, this needs to have the gradient of surr_loss in the backward pass so the model gets the right policy gradient update
     loss = surr_loss + tf.stop_gradient(1 - tf.reduce_mean(r + tf.expand_dims(f1_baseline, -1), axis=-1) - surr_loss)
 
-    cond_loss = tf.where(has_no_answer, tf.zeros_like(loss), loss)  # 只做有答案的
-    return tf.reduce_mean(cond_loss)
+    # cond_loss = tf.where(tf.logical_and(em, has_no_answer), tf.zeros_like(loss), loss)  # 只做有答案的
+    return tf.reduce_mean(loss)

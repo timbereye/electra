@@ -521,7 +521,14 @@ class QATask(task.Task):
         from finetune.qa.rl_loss import rl_loss
 
         loss_rl = rl_loss(start_logits, end_logits, start_positions, end_positions, sample_num=4)
-        losses += 0.5 * loss_rl
+        alpha = tf.train.polynomial_decay(
+            .5,
+            tf.train.get_or_create_global_step(),
+            8248,
+            end_learning_rate=0.0,
+            power=1.,
+            cycle=False)
+        losses += (1 - alpha) * loss_rl
 
         return losses, dict(
             loss=losses,

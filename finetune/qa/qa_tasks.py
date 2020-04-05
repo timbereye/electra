@@ -501,6 +501,7 @@ class QATask(task.Task):
         end_loss = compute_loss(end_logits, end_positions)
 
         # losses = (start_loss + end_loss) / 2.0
+        losses = 0.
 
         answerable_logit = tf.zeros([batch_size])
         if self.config.answerable_classifier:

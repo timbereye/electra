@@ -101,7 +101,7 @@ def simple_replace_with_null_odds():
                 merge_prediction[q_ids] = ''
         return merge_prediction
 
-    for alpha in np.arange(0., 1., 0.1):
+    for alpha in np.arange(0.2, 0.8, 0.1):
         for threshold in np.arange(-5, 0, 0.1):
             merge_prediction = threshold_merge(alpha, threshold)
             exact_scores, f1_scores = get_raw_scores(dev, merge_prediction)

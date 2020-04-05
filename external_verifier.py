@@ -16,6 +16,10 @@ eval_file = './data/squad_eval.json'
 ts = json.load(open(eval_file, 'r', encoding='utf-8'))
 best_th = ts["best_exact_thresh"]
 
+for k, v in null_odds.items():
+    if v > best_th:
+        prediction[k] = ""
+
 answer_null_odds_file = './data/squad_null_odds_answer_model.json'
 answer_null_odds = json.load(open(answer_null_odds_file, 'r', encoding='utf-8'))
 
@@ -101,7 +105,7 @@ def simple_replace_with_null_odds():
                 merge_prediction[q_ids] = ''
         return merge_prediction
 
-    for alpha in np.arange(0.2, 0.8, 0.1):
+    for alpha in np.arange(0., 1., 0.1):
         for threshold in np.arange(-5, 0, 0.1):
             merge_prediction = threshold_merge(alpha, threshold)
             exact_scores, f1_scores = get_raw_scores(dev, merge_prediction)

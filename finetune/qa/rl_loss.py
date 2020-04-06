@@ -1,5 +1,4 @@
 import tensorflow as tf
-from rl.utils import mask_to_start
 
 
 def cross_entropy_loss(logits, answer_start, answer_end, project_layers_num, sample_num):

@@ -500,7 +500,8 @@ class QATask(task.Task):
         start_loss = compute_loss(start_logits, start_positions)
         end_loss = compute_loss(end_logits, end_positions)
 
-        losses = (start_loss + end_loss) / 2.0
+        loss_ce = (start_loss + end_loss) / 2.0
+        losses = 0.
 
         answerable_logit = tf.zeros([batch_size])
         if self.config.answerable_classifier:
@@ -520,15 +521,12 @@ class QATask(task.Task):
 
         from finetune.qa.rl_loss import rl_loss
 
-        loss_rl = rl_loss(start_logits, end_logits, start_positions, end_positions, sample_num=4)
-        alpha = tf.train.polynomial_decay(
-            .5,
-            tf.train.get_or_create_global_step(),
-            8248,
-            end_learning_rate=0.0,
-            power=1.,
-            cycle=False)
-        losses += (1 - alpha) * loss_rl
+        loss_rl = rl_loss(tf.stack([start_logits, end_logits], axis=-1), start_positions, end_positions,
+                          project_layers_num=1, sample_num=4)
+        theta_ce = tf.get_variable('theta_ce', dtype=tf.float32, initializer=lambda: tf.constant(0.5))
+        theta_rl = tf.get_variable('theta_rl', dtype=tf.float32, initializer=lambda: tf.constant(0.5))
+        losses += (1 / (2 * theta_ce * theta_ce)) * loss_ce + (1 / (2 * theta_rl * theta_rl)) * \
+                  loss_rl + tf.log(theta_ce * theta_ce) + tf.log(theta_rl * theta_rl)
 
         return losses, dict(
             loss=losses,

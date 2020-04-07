@@ -112,8 +112,8 @@ def rl_loss(start_logits, end_logits, answer_start, answer_end, project_layers_n
     guess_start = []
     guess_end = []
 
-    guess_start.append(tf.multinomial(start_logits, sample_num))
-    guess_end.append(tf.multinomial(end_logits, sample_num))
+    guess_start.append(tf.random.categorical(start_logits, sample_num, dtype=tf.int32))
+    guess_end.append(tf.random.categorical(end_logits, sample_num, dtype=tf.int32))
     guess_start = tf.concat(guess_start, axis=0)
     guess_end = tf.concat(guess_end, axis=0)
     print("guess_start_shape", guess_start.shape)

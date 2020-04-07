@@ -521,8 +521,7 @@ class QATask(task.Task):
 
         from finetune.qa.rl_loss import rl_loss
 
-        loss_rl = rl_loss(start_logits, end_logits, start_positions, end_positions,
-                          project_layers_num=1, sample_num=4)
+        loss_rl = rl_loss(start_logits, end_logits, start_positions, end_positions, sample_num=4)
 
         losses += 0.95 / 2 * loss_ce + 0.85 / 2 * loss_rl
 

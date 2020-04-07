@@ -33,6 +33,21 @@ def cross_entropy_loss(logits, answer_start, answer_end, project_layers_num, sam
     return loss
 
 
+def greedy_search_end_with_start(sps, els):
+    """
+    sps: guess start positions
+    els: end logits
+    """
+    max_seq_len = tf.shape(els)[1]
+    sps_mask = tf.sequence_mask(sps - 1, maxlen=max_seq_len, dtype=tf.float32)  # start end 是可以重复的
+    els = els * (1 - sps_mask) - 1e30 * sps_mask
+    sort_ids = tf.argsort(els, axis=-1, direction="DESCENDING")
+
+    end_greedy = tf.cast(sort_ids[:, 0], tf.int32)
+
+    return end_greedy
+
+
 def simple_tf_f1_score(tensors):
     prediction_start = tf.cast(tensors[0], dtype=tf.float32)
     prediction_end = tf.cast(tensors[1], dtype=tf.float32)
@@ -59,8 +74,6 @@ def reward(guess_start, guess_end, answer_start, answer_end, baseline, sample_nu
     Reinforcement learning reward (i.e. F1 score) from sampling a trajectory of guesses across each decoder timestep
     """
     reward = [[]] * sample_num
-
-    print("answer_start_shape:", answer_start.shape)
 
     for t in range(sample_num):
         f1_score = tf.map_fn(
@@ -90,7 +103,6 @@ def surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, sample_n
     end_loss = r * \
                tf.nn.sparse_softmax_cross_entropy_with_logits(
                    logits=end_logits, labels=guess_end)
-    print(start_loss.shape)
     start_loss = tf.stack(tf.split(start_loss, sample_num), axis=1)
     end_loss = tf.stack(tf.split(end_loss, sample_num), axis=1)
     loss = tf.reduce_mean(tf.reduce_mean(
@@ -98,14 +110,13 @@ def surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, sample_n
     return loss
 
 
-def rl_loss(start_logits, end_logits, answer_start, answer_end, project_layers_num=4, sample_num=4):
+def rl_loss(start_logits, end_logits, answer_start, answer_end, sample_num=4):
     """
     Reinforcement learning loss
     """
     guess_start_greedy = tf.argmax(start_logits, axis=1)
-    # end_logits = tf.argmax(mask_to_start(
-    #     end_logits, guess_start_greedy), axis=1)
-    guess_end_greedy = tf.argmax(end_logits, axis=1)
+    # guess_end_greedy = tf.argmax(end_logits, axis=1)
+    guess_end_greedy = greedy_search_end_with_start(guess_start_greedy, end_logits)
     baseline = tf.map_fn(simple_tf_f1_score, (guess_start_greedy, guess_end_greedy,
                                               answer_start, answer_end), dtype=tf.float32)
 
@@ -116,7 +127,6 @@ def rl_loss(start_logits, end_logits, answer_start, answer_end, project_layers_n
     guess_end.append(tf.multinomial(end_logits, sample_num))
     guess_start = tf.concat(guess_start, axis=0)
     guess_end = tf.concat(guess_end, axis=0)
-    print("guess_start_shape", guess_start.shape)
     r = reward(guess_start, guess_end, answer_start, answer_end, baseline, sample_num)  # [bs*project_layers,4]
     # print("reward_shape:", r.shape)
     surr_loss = surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, sample_num)

@@ -115,8 +115,8 @@ def rl_loss(start_logits, end_logits, answer_start, answer_end, sample_num=4):
     Reinforcement learning loss
     """
     guess_start_greedy = tf.argmax(start_logits, axis=1)
-    # guess_end_greedy = tf.argmax(end_logits, axis=1)
-    guess_end_greedy = greedy_search_end_with_start(guess_start_greedy, end_logits)
+    guess_end_greedy = tf.argmax(end_logits, axis=1)
+    # guess_end_greedy = greedy_search_end_with_start(guess_start_greedy, end_logits)
     baseline = tf.map_fn(simple_tf_f1_score, (guess_start_greedy, guess_end_greedy,
                                               answer_start, answer_end), dtype=tf.float32)
 
@@ -127,10 +127,9 @@ def rl_loss(start_logits, end_logits, answer_start, answer_end, sample_num=4):
     guess_end.append(tf.multinomial(end_logits, sample_num))
     guess_start = tf.concat(guess_start, axis=0)
     guess_end = tf.concat(guess_end, axis=0)
-    r = reward(guess_start, guess_end, answer_start, answer_end, baseline, sample_num)  # [bs*project_layers,4]
-    # print("reward_shape:", r.shape)
+    r = reward(guess_start, guess_end, answer_start, answer_end, baseline, sample_num)  # [bs, 4]
     surr_loss = surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, sample_num)
-    loss = tf.reduce_mean(-r)
+    loss = 1 - tf.reduce_mean(r) - baseline
 
     # This function needs to return the value of loss in the forward pass so that theta_rl gets the right parameter update
     # However, this needs to have the gradient of surr_loss in the backward pass so the model gets the right policy gradient update

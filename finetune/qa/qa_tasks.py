@@ -494,6 +494,26 @@ class QATask(task.Task):
             loss = -tf.reduce_sum(one_hot_positions * log_probs, axis=-1)
             return loss
 
+        def focal_loss(logits, positions, alpha=0.75, gamma=2):
+            pred = tf.nn.softmax(logits, axis=-1)
+            y = tf.one_hot(positions, depth=seq_length, dtype=tf.float32)
+
+            zeros = tf.zeros_like(pred, dtype=pred.dtype)
+
+            # For positive prediction, only need consider front part loss, back part is 0;
+            # target_tensor > zeros <=> z=1, so positive coefficient = z - p.
+            pos_p_sub = tf.where(y > zeros, y - pred, zeros)  # positive sample 寻找正样本，并进行填充
+
+            # For negative prediction, only need consider back part loss, front part is 0;
+            # target_tensor > zeros <=> z=1, so negative coefficient = 0.
+            neg_p_sub = tf.where(y > zeros, zeros, pred)  # negative sample 寻找负样本，并进行填充
+            per_entry_cross_ent = - alpha * tf.pow(pos_p_sub, gamma) * tf.log(tf.clip_by_value(pred, 1e-30, 1.0)) \
+                                  - (1 - alpha) * tf.pow(neg_p_sub, gamma) * tf.log(
+                tf.clip_by_value(1.0 - pred, 1e-30, 1.0))
+
+            loss = tf.reduce_mean(tf.reduce_sum(per_entry_cross_ent, axis=-1))
+            return loss
+
         start_positions = features[self.name + "_start_positions"]
         end_positions = features[self.name + "_end_positions"]
 

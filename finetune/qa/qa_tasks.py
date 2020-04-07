@@ -523,10 +523,8 @@ class QATask(task.Task):
 
         loss_rl = rl_loss([tf.stack([start_logits, end_logits], axis=-1)], start_positions, end_positions,
                           project_layers_num=1, sample_num=4)
-        theta_ce = tf.get_variable('theta_ce', (), tf.float32)
-        theta_rl = tf.get_variable('theta_rl', (), dtype=tf.float32)
-        losses += (1 / (2 * theta_ce * theta_ce)) * loss_ce + (1 / (2 * theta_rl * theta_rl)) * \
-                  loss_rl + tf.log(theta_ce * theta_ce) + tf.log(theta_rl * theta_rl)
+
+        losses += 0.95 / 2 * loss_ce + 0.85 / 2 * loss_rl
 
         return losses, dict(
             loss=losses,

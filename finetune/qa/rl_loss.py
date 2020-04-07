@@ -54,16 +54,13 @@ def simple_tf_f1_score(tensors):
     return f1
 
 
-def reward(guess_start, guess_end, answer_start, answer_end, baseline, project_layers_num, sample_num):
+def reward(guess_start, guess_end, answer_start, answer_end, baseline, sample_num):
     """
     Reinforcement learning reward (i.e. F1 score) from sampling a trajectory of guesses across each decoder timestep
     """
     reward = [[]] * sample_num
 
     print("answer_start_shape:", answer_start.shape)
-    answer_start = tf.tile(answer_start, [project_layers_num])
-    answer_end = tf.tile(answer_end, [project_layers_num])
-    baseline = tf.tile(baseline, [project_layers_num])
 
     for t in range(sample_num):
         f1_score = tf.map_fn(
@@ -74,7 +71,7 @@ def reward(guess_start, guess_end, answer_start, answer_end, baseline, project_l
     return tf.stack(reward, axis=-1)  # [bs * project_layers_num, sample]
 
 
-def surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, project_layers_num, sample_num):
+def surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, sample_num):
     """
     The surrogate loss to be used for policy gradient updates
     """
@@ -84,9 +81,9 @@ def surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, project_
     guess_end = tf.reshape(guess_end, [-1])
     r = tf.reshape(r, [-1])
     start_logits = tf.concat(
-        [tf.tile(_sp, [sample_num, 1]) for _sp in tf.split(start_logits, bsz * project_layers_num)], axis=0)
+        [tf.tile(_sp, [sample_num, 1]) for _sp in tf.split(start_logits, bsz)], axis=0)
     end_logits = tf.concat(
-        [tf.tile(_sp, [sample_num, 1]) for _sp in tf.split(end_logits, bsz * project_layers_num)], axis=0)
+        [tf.tile(_sp, [sample_num, 1]) for _sp in tf.split(end_logits, bsz)], axis=0)
     start_loss = r * \
                  tf.nn.sparse_softmax_cross_entropy_with_logits(
                      logits=start_logits, labels=guess_start)
@@ -115,15 +112,14 @@ def rl_loss(start_logits, end_logits, answer_start, answer_end, project_layers_n
     guess_start = []
     guess_end = []
 
-    guess_start.append(tf.multinomial(start_logits, sample_num))
-    guess_end.append(tf.multinomial(end_logits, sample_num))
+    guess_start.append(tf.random.categorical(start_logits, sample_num, dtype=tf.int32))
+    guess_end.append(tf.random.categorical(end_logits, sample_num, dtype=tf.int32))
     guess_start = tf.concat(guess_start, axis=0)
     guess_end = tf.concat(guess_end, axis=0)
     print("guess_start_shape", guess_start.shape)
-    r = reward(guess_start, guess_end, answer_start, answer_end, baseline, project_layers_num,
-               sample_num)  # [bs*project_layers,4]
+    r = reward(guess_start, guess_end, answer_start, answer_end, baseline, sample_num)  # [bs*project_layers,4]
     # print("reward_shape:", r.shape)
-    surr_loss = surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, project_layers_num, sample_num)
+    surr_loss = surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, sample_num)
     loss = tf.reduce_mean(-r)
 
     # This function needs to return the value of loss in the forward pass so that theta_rl gets the right parameter update

@@ -1,38 +1,6 @@
 import tensorflow as tf
 
 
-def cross_entropy_loss(logits, answer_start, answer_end, project_layers_num, sample_num):
-    """
-    Cross entropy loss across all decoder timesteps
-    """
-    logits = tf.concat(logits, axis=0)
-
-    # start_logits = tf.concat(
-    #     [tf.tile(_sp, [sample_num, 1]) for _sp in tf.split(logits[:, :, 0], bs * project_layers_num)], axis=0)
-    # end_logits = tf.concat(
-    #     [tf.tile(_sp, [sample_num, 1]) for _sp in tf.split(logits[:, :, 1], bs * project_layers_num)], axis=0)
-
-    answer_start = tf.tile(answer_start, [project_layers_num])
-    answer_end = tf.tile(answer_end, [project_layers_num])
-
-    # answer_start = tf.concat(
-    #     [tf.tile(_sp, [sample_num]) for _sp in tf.split(answer_start, bs * project_layers_num)], axis=0)
-    #
-    # answer_end = tf.concat(
-    #     [tf.tile(_sp, [sample_num]) for _sp in tf.split(answer_end, bs * project_layers_num)], axis=0)
-
-    start_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
-        logits=logits[:, :, 0], labels=answer_start)
-    end_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
-        logits=logits[:, :, 1], labels=answer_end)
-
-    start_loss = tf.stack(tf.split(start_loss, project_layers_num), axis=1)
-    end_loss = tf.stack(tf.split(end_loss, project_layers_num), axis=1)
-    loss = tf.reduce_mean(tf.reduce_mean(
-        start_loss + end_loss, axis=1), axis=0)
-    return loss
-
-
 def greedy_search_end_with_start(sps, els):
     """
     sps: guess start positions
@@ -129,7 +97,7 @@ def rl_loss(start_logits, end_logits, answer_start, answer_end, sample_num=4):
     guess_end = tf.concat(guess_end, axis=0)
     r = reward(guess_start, guess_end, answer_start, answer_end, baseline, sample_num)  # [bs, 4]
     surr_loss = surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, sample_num)
-    loss = 1 - tf.reduce_mean(r) - baseline
+    loss = tf.reduce_mean(-r)
 
     # This function needs to return the value of loss in the forward pass so that theta_rl gets the right parameter update
     # However, this needs to have the gradient of surr_loss in the backward pass so the model gets the right policy gradient update

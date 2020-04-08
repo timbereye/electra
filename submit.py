@@ -19,7 +19,7 @@ def check_and_mkdirs(path):
 
 
 def main():
-    output_dir = FLAGS.output_dir
+    output_dir = os.path.abspath(FLAGS.output_dir)
     qa_model_dir = FLAGS.qa_model_path
     answer_model_dir = FLAGS.answer_model_path
     output_file = FLAGS.output_file

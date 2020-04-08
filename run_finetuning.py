@@ -306,7 +306,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", required=True,
                         help="Location of data files (model weights, etc).")
-    parser.add_argument("--model-name", required=True,
+    parser.add_argument("--model-name", required=False,
                         help="The name of the model being fine-tuned.")
     parser.add_argument("--hparams", default="{}",
                         help="JSON dict of model hyperparameters.")

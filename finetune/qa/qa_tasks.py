@@ -521,7 +521,7 @@ class QATask(task.Task):
 
         from finetune.qa.rl_loss import rl_loss
 
-        loss_rl = rl_loss(start_logits, end_logits, start_positions, end_positions, sample_num=2)
+        loss_rl = rl_loss(start_logits, end_logits, start_positions, end_positions, sample_num=4)
         # theta_ce = tf.get_variable('theta_ce', dtype=tf.float32, initializer=lambda: tf.constant(1.))
         # theta_rl = tf.get_variable('theta_rl', dtype=tf.float32, initializer=lambda: tf.constant(1.))
         # losses += (1 / (2 * theta_ce * theta_ce)) * loss_ce + (1 / (2 * theta_rl * theta_rl)) * loss_rl + \

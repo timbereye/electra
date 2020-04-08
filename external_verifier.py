@@ -11,14 +11,14 @@ def ev(eval_file, preds_file, null_odds_file, eval_result_file, answer_null_odds
 
     tmp_file = 'tmp_preds.json'
     tmp_eval_file = 'tmp_eval.json'
-    xargs = f"python ./finetune/qa/squad_official_eval.py {eval_file} {preds_file} " \
+    xargs = f"python squad_official_eval.py {eval_file} {preds_file} " \
             f"--na-prob-file {null_odds_file} --na-prob-thresh {best_th}"
     os.system(xargs)
     for k, v in null_odds.items():
         if v > best_th:
             prediction[k] = ""
     json.dump(prediction, open(tmp_file, 'w', encoding='utf-8'))
-    xargs = f"python ./finetune/qa/squad_official_eval.py {eval_file} {tmp_file} " \
+    xargs = f"python squad_official_eval.py {eval_file} {tmp_file} " \
             f"--na-prob-file {answer_null_odds_file} --out-file {tmp_eval_file}"
     os.system(xargs)
     new_sh = json.load(open(tmp_eval_file, 'r', encoding='utf-8'))["best_exact_thresh"]
@@ -26,7 +26,7 @@ def ev(eval_file, preds_file, null_odds_file, eval_result_file, answer_null_odds
         if v > new_sh:
             prediction[k] = ""
     json.dump(prediction, open(output_file, 'w', encoding='utf-8'))
-    xargs = f"python ./finetune/qa/squad_official_eval.py {eval_file} {output_file} "
+    xargs = f"python squad_official_eval.py {eval_file} {output_file} "
 
     os.system(xargs)
     shutil.rmtree(tmp_file)

@@ -103,6 +103,7 @@ class FinetuningConfig(object):
         self.data_dir = data_dir
         # pretrained_model_dir = os.path.join(data_dir, "models", model_name)
         pretrained_model_dir = kwargs["pretrained_model_dir"]
+        results_dir_name = kwargs["results_dir_name"]
 
         self.raw_data_dir = os.path.join(data_dir, "finetuning_data", "{:}").format
         self.vocab_file = os.path.join(pretrained_model_dir, "vocab.txt")
@@ -113,7 +114,7 @@ class FinetuningConfig(object):
         self.init_checkpoint = None if self.debug else pretrained_model_dir
         self.model_dir = os.path.join(pretrained_model_dir, "finetuning_models",
                                       task_names_str + "_model")
-        results_dir = os.path.join(data_dir, "results")
+        results_dir = os.path.join(data_dir, results_dir_name)
         self.results_txt = os.path.join(results_dir,
                                         task_names_str + "_results.txt")
         self.results_pkl = os.path.join(results_dir,

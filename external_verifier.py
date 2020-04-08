@@ -29,5 +29,5 @@ def ev(eval_file, preds_file, null_odds_file, eval_result_file, answer_null_odds
     xargs = f"python squad_official_eval.py {eval_file} {output_file} "
 
     os.system(xargs)
-    shutil.rmtree(tmp_file)
-    shutil.rmtree(tmp_eval_file)
+    os.remove(tmp_file)
+    os.remove(tmp_eval_file)

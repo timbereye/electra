@@ -27,14 +27,14 @@ def main():
     shutil.copy(eval_file_path, os.path.join(raw_data_dir, "dev.json"))
 
     qa_xargs = f"""python run_finetuning.py \
-  --data-dir={output_dir} \
-  --hparams '{{"model_size": "large", "task_names": ["squad"], "eval_batch_size": 8, "predict_batch_size": 8, "max_seq_length": 512, "learning_rate": 5e-5, "use_tfrecords_if_existing": false, "do_train": false, "do_eval": true, "pretrained_model_dir": {qa_model_dir}, "results_dir_name":"results_qa" }}'
+  --data-dir="{output_dir}" \
+  --hparams '{{"model_size": "large", "task_names": ["squad"], "eval_batch_size": 8, "predict_batch_size": 8, "max_seq_length": 512, "learning_rate": 5e-5, "use_tfrecords_if_existing": false, "do_train": false, "do_eval": true, "pretrained_model_dir": "{qa_model_dir}", "results_dir_name":"results_qa" }}'
 """
     os.system(qa_xargs)
 
     answer_xargs = f"""python run_finetuning.py \
-  --data-dir={output_dir} \
-  --hparams '{{"model_size": "large", "task_names": ["squad"], "eval_batch_size": 8, "predict_batch_size": 8, "max_seq_length": 512, "learning_rate": 5e-5, "use_tfrecords_if_existing": true, "do_train": false, "do_eval": true, "pretrained_model_dir": {answer_model_dir}, "results_dir_name":"results_answer"}}'
+  --data-dir="{output_dir}" \
+  --hparams '{{"model_size": "large", "task_names": ["squad"], "eval_batch_size": 8, "predict_batch_size": 8, "max_seq_length": 512, "learning_rate": 5e-5, "use_tfrecords_if_existing": true, "do_train": false, "do_eval": true, "pretrained_model_dir": "{answer_model_dir}", "results_dir_name":"results_answer"}}'
 """
     os.system(answer_xargs)
 

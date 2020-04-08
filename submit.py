@@ -12,7 +12,7 @@ flags.DEFINE_string("output_dir", None, "output_dir")
 
 def check_and_mkdirs(path):
     if not os.path.exists(path):
-        os.mkdir(path)
+        os.makedirs(path)
     return True
 
 

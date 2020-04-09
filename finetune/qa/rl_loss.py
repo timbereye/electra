@@ -66,7 +66,7 @@ def reward(guess_start, guess_end, answer_start, answer_end, baseline, sample_nu
             dtype=tf.float32)  # [bs,]
         normalized_reward = tf.stop_gradient(f1_score - baseline)
         reward[t] = normalized_reward
-    return tf.stack(reward, axis=-1)  # [bs * project_layers_num, sample]
+    return tf.stack(reward, axis=-1) * 100  # [bs, sample]
 
 
 def surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, sample_num):
@@ -101,8 +101,9 @@ def rl_loss(start_logits, end_logits, answer_start, answer_end, sample_num=4):
     """
     guess_start_greedy = tf.argmax(start_logits, axis=1)
     guess_end_greedy = tf.argmax(end_logits, axis=1)
-    baseline = tf.map_fn(simple_tf_f1_score, (guess_start_greedy, guess_end_greedy,
-                                              answer_start, answer_end), dtype=tf.float32)
+    # baseline = tf.map_fn(simple_tf_f1_score, (guess_start_greedy, guess_end_greedy,
+    #                                           answer_start, answer_end), dtype=tf.float32)
+    baseline = tf.random.uniform((), minval=0.2, maxval=0.8, name="baseline")
 
     guess_start = []
     guess_end = []

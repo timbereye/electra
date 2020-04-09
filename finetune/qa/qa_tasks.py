@@ -526,7 +526,7 @@ class QATask(task.Task):
         # theta_rl = tf.get_variable('theta_rl', dtype=tf.float32, initializer=lambda: tf.constant(1.))
         # losses += (1 / (2 * theta_ce * theta_ce)) * loss_ce + (1 / (2 * theta_rl * theta_rl)) * loss_rl + \
         #           tf.log(theta_ce * theta_ce) + tf.log(theta_rl * theta_rl)
-        losses = 0 * loss_rl + 0.5 * loss_ce + 1 * losses
+        losses = 1 * loss_rl + 0 * loss_ce + 0 * losses
 
         return losses, dict(
             loss=losses,

@@ -60,15 +60,11 @@ def reward(guess_start, guess_end, answer_start, answer_end, baseline, sample_nu
     """
     reward = [[]] * sample_num
 
-    answer_start = tf.tile(answer_start, [1])
-    answer_end = tf.tile(answer_end, [1])
-    baseline = tf.tile(baseline, [1])
-
     for t in range(sample_num):
         f1_score = tf.map_fn(
             simple_tf_f1_score, (guess_start[:, t], guess_end[:, t], answer_start, answer_end),
             dtype=tf.float32)  # [bs,]
-        normalized_reward = tf.stop_gradient(f1_score - baseline)
+        normalized_reward = tf.stop_gradient(f1_score)
         reward[t] = normalized_reward
     return tf.stack(reward, axis=-1)  # [bs * project_layers_num, sample]
 

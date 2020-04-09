@@ -71,7 +71,7 @@ def rl_loss(start_logits, end_logits, answer_start, answer_end, sample_num=4):
     guess_end_greedy = tf.argmax(end_logits, axis=1)
     baseline = tf.map_fn(simple_tf_f1_score, (guess_start_greedy, guess_end_greedy,
                                               answer_start, answer_end), dtype=tf.float32)
-    baseline = tf.math.minimum(baseline, 0.8)
+    baseline = tf.math.minimum(baseline, 0.9)
 
     guess_start = []
     guess_end = []

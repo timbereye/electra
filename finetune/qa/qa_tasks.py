@@ -501,7 +501,7 @@ class QATask(task.Task):
         end_loss = compute_loss(end_logits, end_positions)
 
         loss_ce = (start_loss + end_loss) / 1.0
-        losses = 0.
+        loss_as = 0.
 
         answerable_logit = tf.zeros([batch_size])
         if self.config.answerable_classifier:
@@ -517,7 +517,7 @@ class QATask(task.Task):
             answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
                 labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
                 logits=answerable_logit)
-            losses += answerable_loss * self.config.answerable_weight
+            loss_as += answerable_loss * self.config.answerable_weight
 
         from finetune.qa.rl_loss import rl_loss
 
@@ -526,7 +526,7 @@ class QATask(task.Task):
         # theta_rl = tf.get_variable('theta_rl', dtype=tf.float32, initializer=lambda: tf.constant(1.))
         # losses += (1 / (2 * theta_ce * theta_ce)) * loss_ce + (1 / (2 * theta_rl * theta_rl)) * loss_rl + \
         #           tf.log(theta_ce * theta_ce) + tf.log(theta_rl * theta_rl)
-        losses = 1 * loss_rl + 0 * loss_ce + 1 * losses
+        losses = 0.5 * loss_rl + 0.5 * loss_ce + 1. * loss_as
 
         return losses, dict(
             loss=losses,

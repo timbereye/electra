@@ -66,7 +66,7 @@ def reward(guess_start, guess_end, answer_start, answer_end, baseline, sample_nu
             dtype=tf.float32)  # [bs,]
         normalized_reward = tf.stop_gradient(f1_score - baseline)
         reward[t] = normalized_reward
-    return tf.stack(reward, axis=-1) * 10  # [bs, sample]
+    return tf.stack(reward, axis=-1)  # [bs, sample]
 
 
 def surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, sample_num):

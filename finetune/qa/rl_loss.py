@@ -22,35 +22,6 @@ def simple_tf_f1_score(tensors):
     return f1
 
 
-def greedy_search_end_with_start(sps, els):
-    """
-    sps: guess start positions
-    els: end logits
-    """
-    max_seq_len = tf.shape(els)[1]
-    sps_mask = tf.sequence_mask(sps - 1, maxlen=max_seq_len, dtype=tf.float32)  # start end 是可以重复的
-    els = els * (1 - sps_mask) - 1e30 * sps_mask
-    sort_ids = tf.argsort(els, axis=-1, direction="DESCENDING")
-
-    end_greedy = tf.cast(sort_ids[:, 0], tf.int32)
-
-    return end_greedy
-
-
-def greedy_sample_with_logits(sls, els):
-    """
-    sls: start logits
-    els: end logits
-    """
-    max_seq_len = tf.shape(sls)[1]
-    start_sample = tf.random.categorical(sls, 1, dtype=tf.int32)
-    sps_mask = tf.sequence_mask(tf.squeeze(start_sample) - 1, maxlen=max_seq_len, dtype=tf.float32)  # start end 是可以重复的
-    els = els * (1 - sps_mask) - 1e30 * sps_mask
-    end_sample = tf.random.categorical(els, 1, dtype=tf.int32)
-
-    return start_sample, end_sample
-
-
 def reward(guess_start, guess_end, answer_start, answer_end, baseline, sample_num):
     """
     Reinforcement learning reward (i.e. F1 score) from sampling a trajectory of guesses across each decoder timestep
@@ -97,27 +68,21 @@ def rl_loss(start_logits, end_logits, answer_start, answer_end, sample_num=4):
     Reinforcement learning loss
     """
     guess_start_greedy = tf.argmax(start_logits, axis=1)
-    # guess_end_greedy = tf.argmax(end_logits, axis=1)
-    guess_end_greedy = greedy_search_end_with_start(guess_start_greedy, end_logits)
-
+    guess_end_greedy = tf.argmax(end_logits, axis=1)
     baseline = tf.map_fn(simple_tf_f1_score, (guess_start_greedy, guess_end_greedy,
                                               answer_start, answer_end), dtype=tf.float32)
     baseline = tf.math.minimum(baseline, 0.8)
 
-    guess_start_sample = []
-    guess_end_sample = []
-    for _ in range(sample_num):
-        start_sample, end_sample = greedy_sample_with_logits(start_logits, end_logits)
-        guess_start_sample.append(start_sample)
-        guess_end_sample.append(end_sample)
+    guess_start = []
+    guess_end = []
 
-    guess_start_sample = tf.concat(guess_start_sample, axis=1, name="guess_start_sample")
-    guess_end_sample = tf.concat(guess_end_sample, axis=1, name="guess_end_sample")
-
-    r = reward(guess_start_sample, guess_end_sample, answer_start, answer_end, baseline,
-               sample_num)  # [bs*project_layers,4]
+    guess_start.append(tf.multinomial(start_logits, sample_num))
+    guess_end.append(tf.multinomial(end_logits, sample_num))
+    guess_start = tf.concat(guess_start, axis=0)
+    guess_end = tf.concat(guess_end, axis=0)
+    r = reward(guess_start, guess_end, answer_start, answer_end, baseline, sample_num)  # [bs*project_layers,4]
     # print("reward_shape:", r.shape)
-    surr_loss = surrogate_loss(start_logits, end_logits, guess_start_sample, guess_end_sample, r, sample_num)
+    surr_loss = surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, sample_num)
     loss = tf.reduce_mean(-r)
 
     # This function needs to return the value of loss in the forward pass so that theta_rl gets the right parameter update

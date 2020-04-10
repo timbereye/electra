@@ -124,7 +124,8 @@ def reforce_f1_ce_loss(start_logits, end_logits, start_positions, end_positions,
     guess_starts, guess_ends = sample_with_greedy(start_logits, end_logits, guess_start_greedy, guess_end_greedy,
                                                   seq_length=seq_length, num_samples=num_samples)  # [bs, num_samples]
     r = reward(guess_starts, guess_ends, start_positions, end_positions, baseline, num_samples)  # [bs, num_samples]
-    start_rl_loss, end_rl_loss = surrogate_loss(start_logits, end_logits, guess_starts, guess_ends, r, num_samples)
+    start_rl_loss, end_rl_loss = surrogate_loss(start_logits, end_logits, guess_starts, guess_ends, r, seq_length,
+                                                num_samples)
 
     gamma = tf.cond(tf.logical_and(tf.logical_not(tf.logical_or(is_em, is_no_answer)), is_contain_answer),
                     lambda: .5 * tf.ones([bsz]),

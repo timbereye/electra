@@ -521,8 +521,8 @@ class QATask(task.Task):
 
         from finetune.qa.rl_loss import reforce_f1_ce_loss
 
-        rf_loss = reforce_f1_ce_loss(start_logits, end_logits, start_positions, end_positions, num_samples=4)
-        losses = loss_as + rf_loss
+        loss_rf = reforce_f1_ce_loss(start_logits, end_logits, start_positions, end_positions, num_samples=4)
+        losses = loss_as + loss_rf
 
         return losses, dict(
             loss=losses,

@@ -28,12 +28,13 @@ def reward(guess_start, guess_end, answer_start, answer_end, baseline, sample_nu
     """
     reward = [[]] * sample_num
 
+    no_answer = 1 - tf.cast(tf.logical_and(tf.equal(answer_start, 0), tf.equal(answer_end, 0)), tf.float32)
     for t in range(sample_num):
         f1_score = tf.map_fn(
             simple_tf_f1_score, (guess_start[:, t], guess_end[:, t], answer_start, answer_end),
             dtype=tf.float32)  # [bs,]
         normalized_reward = tf.stop_gradient(f1_score - baseline)
-        reward[t] = normalized_reward
+        reward[t] = normalized_reward * no_answer
     return tf.stack(reward, axis=-1)  # [bs, sample]
 
 

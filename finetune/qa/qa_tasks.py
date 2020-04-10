@@ -496,11 +496,11 @@ class QATask(task.Task):
 
         start_positions = features[self.name + "_start_positions"]
         end_positions = features[self.name + "_end_positions"]
-
-        start_loss = compute_loss(start_logits, start_positions)
-        end_loss = compute_loss(end_logits, end_positions)
-
-        loss_ce = (start_loss + end_loss) / 1.0
+        #
+        # start_loss = compute_loss(start_logits, start_positions)
+        # end_loss = compute_loss(end_logits, end_positions)
+        #
+        # loss_ce = (start_loss + end_loss) / 1.0
         loss_as = 0.
 
         answerable_logit = tf.zeros([batch_size])
@@ -519,14 +519,10 @@ class QATask(task.Task):
                 logits=answerable_logit)
             loss_as += answerable_loss * self.config.answerable_weight
 
-        from finetune.qa.rl_loss import rl_loss
+        from finetune.qa.rl_loss import reforce_f1_ce_loss
 
-        loss_rl = rl_loss(start_logits, end_logits, start_positions, end_positions, sample_num=4)
-        # theta_ce = tf.get_variable('theta_ce', dtype=tf.float32, initializer=lambda: tf.constant(1.))
-        # theta_rl = tf.get_variable('theta_rl', dtype=tf.float32, initializer=lambda: tf.constant(1.))
-        # losses += (1 / (2 * theta_ce * theta_ce)) * loss_ce + (1 / (2 * theta_rl * theta_rl)) * loss_rl + \
-        #           tf.log(theta_ce * theta_ce) + tf.log(theta_rl * theta_rl)
-        losses = 0.5 * loss_rl + 0.5 * loss_ce + 1. * loss_as
+        rf_loss = reforce_f1_ce_loss(start_logits, end_logits, start_positions, end_positions, num_samples=4)
+        losses = loss_as + rf_loss
 
         return losses, dict(
             loss=losses,

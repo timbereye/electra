@@ -105,8 +105,8 @@ def sample_with_greedy(start_logits, end_logits, guess_start_greedy, guess_end_g
 
 
 def reforce_f1_ce_loss(start_logits, end_logits, start_positions, end_positions, num_samples):
-    guess_start_greedy = tf.argmax(start_logits, axis=1)
-    guess_end_greedy = tf.argmax(end_logits, axis=1)
+    guess_start_greedy = tf.argmax(start_logits, axis=1, output_type=tf.int32)
+    guess_end_greedy = tf.argmax(end_logits, axis=1, output_type=tf.int32)
 
     baseline = tf.map_fn(simple_tf_f1_score, (guess_start_greedy, guess_end_greedy,
                                               start_positions, end_positions), dtype=tf.float32)  # [bs, ]

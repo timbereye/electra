@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 
-def compute_loss(logits, positions):
+def compute_loss(logits, positions, seq_length):
     one_hot_positions = tf.one_hot(
         positions, depth=seq_length, dtype=tf.float32)
     log_probs = tf.nn.log_softmax(logits, axis=-1)
@@ -45,7 +45,7 @@ def reward(guess_start, guess_end, answer_start, answer_end, baseline, sample_nu
     return tf.stack(reward, axis=-1)  # [bs, sample]
 
 
-def surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, num_samples):
+def surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, seq_length, num_samples):
     """
     The surrogate loss to be used for policy gradient updates
     """
@@ -58,8 +58,8 @@ def surrogate_loss(start_logits, end_logits, guess_start, guess_end, r, num_samp
         [tf.tile(_sp, [num_samples, 1]) for _sp in tf.split(start_logits, bsz)], axis=0)
     end_logits = tf.concat(
         [tf.tile(_sp, [num_samples, 1]) for _sp in tf.split(end_logits, bsz)], axis=0)
-    start_loss = r * compute_loss(start_logits, guess_start)
-    end_loss = r * compute_loss(end_logits, guess_end)
+    start_loss = r * compute_loss(start_logits, guess_start, seq_length)
+    end_loss = r * compute_loss(end_logits, guess_end, seq_length)
     start_loss = tf.reduce_mean(tf.stack(tf.split(start_loss, num_samples), axis=1), axis=1)
     end_loss = tf.reduce_mean(tf.stack(tf.split(end_loss, num_samples), axis=1), axis=1)
     return start_loss, end_loss
@@ -118,8 +118,8 @@ def reforce_f1_ce_loss(start_logits, end_logits, start_positions, end_positions,
     is_contain_answer = tf.logical_and(tf.greater_equal(guess_start_greedy, start_positions),
                                        tf.less_equal(guess_end_greedy, end_positions))
 
-    start_ce_loss = compute_loss(start_logits, start_positions)
-    end_ce_loss = compute_loss(end_logits, end_positions)
+    start_ce_loss = compute_loss(start_logits, start_positions, seq_length)
+    end_ce_loss = compute_loss(end_logits, end_positions, seq_length)
 
     guess_starts, guess_ends = sample_with_greedy(start_logits, end_logits, guess_start_greedy, guess_end_greedy,
                                                   seq_length=seq_length, num_samples=num_samples)  # [bs, num_samples]

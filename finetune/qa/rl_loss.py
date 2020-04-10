@@ -128,8 +128,8 @@ def reforce_f1_ce_loss(start_logits, end_logits, start_positions, end_positions,
                                                 num_samples)
 
     gamma = tf.cond(tf.logical_and(tf.logical_not(tf.logical_or(is_em, is_no_answer)), is_contain_answer),
-                    lambda: .5 * tf.ones([bsz]),
-                    lambda: tf.zeros([bsz]))
+                    lambda: .5 * tf.ones([bsz, ]),
+                    lambda: tf.zeros([bsz, ]))
     start_loss = start_ce_loss * (1 - gamma) + start_rl_loss * gamma
     end_loss = end_ce_loss * (1 - gamma) + end_rl_loss * gamma
 

@@ -194,7 +194,6 @@ class ModelRunner(object):
                                           yield_single_examples=True)
         scorer = task.get_scorer()
         for r in results:
-            print(r)
             if r["task_id"] != len(self._tasks):  # ignore padding examples
                 r = utils.nest_dict(r, self._config.task_names)
                 scorer.update(r[task.name])

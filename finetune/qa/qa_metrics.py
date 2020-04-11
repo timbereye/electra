@@ -245,7 +245,8 @@ class SpanBasedQAScorer(scorer.Scorer):
                 nbest_json.append(dict(output))
 
             assert len(nbest_json) >= 1
-            print(nbest_json)
+            from pprint import pprint
+            pprint(nbest_json)
 
             if not self._v2:
                 all_predictions[example_id] = nbest_json[0]["text"]

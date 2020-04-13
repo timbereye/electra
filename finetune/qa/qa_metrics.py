@@ -66,7 +66,7 @@ class SpanBasedQAScorer(scorer.Scorer):
                 start_top_index=results["start_top_index"],
                 end_top_log_probs=results["end_top_log_probs"],
                 end_top_index=results["end_top_index"],
-                refine_logits=results["refine_logit"]
+                refine_logits=results["refine_logits"]
             ))
         self._total_loss += results["loss"]
 

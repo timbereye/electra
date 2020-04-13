@@ -90,8 +90,6 @@ class SpanBasedQAScorer(scorer.Scorer):
     def write_predictions(self):
         """Write final predictions to the json file."""
         unique_id_to_result = {}
-        import pickle
-        pickle.dump(self._all_results, open('all_results.pkl', 'wb'))
         for result in self._all_results:
             unique_id_to_result[result.unique_id] = result
 
@@ -104,15 +102,19 @@ class SpanBasedQAScorer(scorer.Scorer):
         all_nbest_json = collections.OrderedDict()
         scores_diff_json = collections.OrderedDict()
 
+        refine = {}
         for example in self._eval_examples:
             example_id = example.qas_id if "squad" in self._name else example.qid
             features = self._task.featurize(example, False, for_eval=True)
+            refine[example_id] = {'true_label': example.refine_class, 'refine_logits': []}
 
             prelim_predictions = []
             # keep track of the minimum score of null start+end of position 0
             score_null = 1000000  # large and positive
             for (feature_index, feature) in enumerate(features):
                 result = unique_id_to_result[feature[self._name + "_eid"]]
+
+                refine[example_id]['refine_logits'].append(result["refine_logits"])
                 if self._config.joint_prediction:
                     start_indexes = result.start_top_index
                     end_indexes = result.end_top_index
@@ -269,6 +271,8 @@ class SpanBasedQAScorer(scorer.Scorer):
             utils.write_json({
                 k: float(v) for k, v in six.iteritems(scores_diff_json)},
                 self._config.qa_na_file(self._name))
+        import pickle
+        pickle.dump(refine, open('refine.pkl', 'wb'))
 
 
 def _get_best_indexes(logits, n_best_size):

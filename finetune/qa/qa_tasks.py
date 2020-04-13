@@ -527,7 +527,7 @@ class QATask(task.Task):
 
         if True:
             final_repr = final_hidden[:, 0]
-            refine_logit = tf.squeeze(tf.layers.dense(final_repr, 3), -1)
+            refine_logit = tf.layers.dense(final_repr, 3)
             refine_loss = tf.nn.softmax_cross_entropy_with_logits(
                 labels=tf.one_hot(features[self.name + "_refine_class"], tf.float32),
                 logits=refine_logit)

@@ -48,7 +48,8 @@ class QAExample(task.Example):
                  orig_answer_text=None,
                  start_position=None,
                  end_position=None,
-                 is_impossible=False):
+                 is_impossible=False,
+                 refine_class=0):
         super(QAExample, self).__init__(task_name)
         self.eid = eid
         self.qas_id = qas_id
@@ -59,6 +60,7 @@ class QAExample(task.Example):
         self.start_position = start_position
         self.end_position = end_position
         self.is_impossible = is_impossible
+        self.refine_class = refine_class
 
     def __str__(self):
         return self.__repr__()
@@ -192,9 +194,11 @@ class QATask(task.Task):
             end_position = None
             orig_answer_text = None
             is_impossible = False
+            refine_class = 0
             if split == "train":
                 if self.v2:
                     is_impossible = qa["is_impossible"]
+                    refine_class = qa["refine_class"]
                 if not is_impossible:
                     if "detected_answers" in qa:  # MRQA format
                         answer = qa["detected_answers"][0]
@@ -245,7 +249,8 @@ class QATask(task.Task):
                 orig_answer_text=orig_answer_text,
                 start_position=start_position,
                 end_position=end_position,
-                is_impossible=is_impossible)
+                is_impossible=is_impossible,
+                refine_class=refine_class)
             examples.append(example)
 
     def get_feature_specs(self):
@@ -254,6 +259,7 @@ class QATask(task.Task):
             feature_spec.FeatureSpec(self.name + "_start_positions", []),
             feature_spec.FeatureSpec(self.name + "_end_positions", []),
             feature_spec.FeatureSpec(self.name + "_is_impossible", []),
+            feature_spec.FeatureSpec(self.name + "_refine_class", []),
         ]
 
     def featurize(self, example: QAExample, is_training, log=False,
@@ -411,7 +417,8 @@ class QATask(task.Task):
                 features.update({
                     self.name + "_start_positions": start_position,
                     self.name + "_end_positions": end_position,
-                    self.name + "_is_impossible": example.is_impossible
+                    self.name + "_is_impossible": example.is_impossible,
+                    self.name + "_refine_class": example.refine_class
                 })
             all_features.append(features)
         return all_features
@@ -518,6 +525,14 @@ class QATask(task.Task):
                 logits=answerable_logit)
             losses += answerable_loss * self.config.answerable_weight
 
+        if True:
+            final_repr = final_hidden[:, 0]
+            refine_logit = tf.squeeze(tf.layers.dense(final_repr, 3), -1)
+            refine_loss = tf.nn.softmax_cross_entropy_with_logits(
+                labels=tf.one_hot(features[self.name + "_refine_class"], tf.float32),
+                logits=refine_logit)
+            losses += refine_loss * self.config.answerable_weight
+
         return losses, dict(
             loss=losses,
             start_logits=start_logits,
@@ -529,6 +544,7 @@ class QATask(task.Task):
             start_top_index=start_top_index,
             end_top_log_probs=end_top_log_probs,
             end_top_index=end_top_index,
+            refine_logit=refine_logit,
             eid=features[self.name + "_eid"],
         )
 

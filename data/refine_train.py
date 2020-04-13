@@ -9,7 +9,8 @@ for article in train['data']:
         for i, qa in enumerate(new_p['qas']):
             qid = qa['id']
             if qa['is_impossible']:
-                p['qas'][i] = []
+                # p['qas'][i] = []
+                p['qas'][i]['refine_class'] = meta[qid]['class']
             else:
                 p['qas'][i]['refine_class'] = meta[qid]['class']
         p['qas'] = list(filter(lambda x: len(x), p['qas']))

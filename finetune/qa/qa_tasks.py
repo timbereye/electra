@@ -509,28 +509,38 @@ class QATask(task.Task):
         losses = (start_loss + end_loss) / 2.0
 
         answerable_logit = tf.zeros([batch_size])
-        if self.config.answerable_classifier:
+        # if self.config.answerable_classifier:
+        #     final_repr = final_hidden[:, 0]
+        #     if self.config.answerable_uses_start_logits:
+        #         start_p = tf.nn.softmax(start_logits)
+        #         start_feature = tf.reduce_sum(tf.expand_dims(start_p, -1) *
+        #                                       final_hidden, axis=1)
+        #         final_repr = tf.concat([final_repr, start_feature], -1)
+        #         final_repr = tf.layers.dense(final_repr, 512,
+        #                                      activation=modeling.gelu)
+        #     answerable_logit = tf.squeeze(tf.layers.dense(final_repr, 1), -1)
+        #     answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
+        #         labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
+        #         logits=answerable_logit)
+        #     losses += answerable_loss * self.config.answerable_weight
+
+        if True:
             final_repr = final_hidden[:, 0]
             if self.config.answerable_uses_start_logits:
                 start_p = tf.nn.softmax(start_logits)
                 start_feature = tf.reduce_sum(tf.expand_dims(start_p, -1) *
                                               final_hidden, axis=1)
-                final_repr = tf.concat([final_repr, start_feature], -1)
+                end_p = tf.nn.softmax(end_logits)
+                end_feature = tf.reduce_sum(tf.expand_dims(end_p, -1) *
+                                            final_hidden, axis=1)
+                final_repr = tf.concat([final_repr, start_feature, end_feature], -1)
                 final_repr = tf.layers.dense(final_repr, 512,
                                              activation=modeling.gelu)
-            answerable_logit = tf.squeeze(tf.layers.dense(final_repr, 1), -1)
-            answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
-                labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
-                logits=answerable_logit)
-            losses += answerable_loss * self.config.answerable_weight
-
-        if True:
-            final_repr = final_hidden[:, 0]
             refine_logit = tf.layers.dense(final_repr, 3)
             refine_loss = tf.nn.softmax_cross_entropy_with_logits(
                 labels=tf.one_hot(features[self.name + "_refine_class"], depth=3, dtype=tf.float32),
                 logits=refine_logit)
-            losses = refine_loss + losses * 0
+            losses += refine_loss * 0.5
 
         return losses, dict(
             loss=losses,

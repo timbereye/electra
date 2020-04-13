@@ -272,7 +272,20 @@ class SpanBasedQAScorer(scorer.Scorer):
                 k: float(v) for k, v in six.iteritems(scores_diff_json)},
                 self._config.qa_na_file(self._name))
         import pickle
-        pickle.dump(refine, open('refine.pkl', 'wb'))
+        pickle.dump(refine, open(self._config.qa_refine_file(self._name), 'wb'))
+
+        y_true = []
+        y_pred = []
+        for qid, v in refine.items():
+            y_true.append(v['true_label'])
+
+            logits = v['refine_logits']
+            sum_logits = np.sum(np.stack(logits, axis=-1), axis=-1)
+            probs = _compute_softmax(sum_logits.tolist())
+
+            y_pred.append(np.argmax(probs))
+        from sklearn.metrics import classification_report
+        print(classification_report(y_true, y_pred))
 
 
 def _get_best_indexes(logits, n_best_size):

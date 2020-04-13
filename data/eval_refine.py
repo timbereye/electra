@@ -7,12 +7,10 @@ from finetune.qa.qa_metrics import _compute_softmax
 
 refine = pickle.load(open('refine.pkl', 'rb'))
 
-meta = json.load(open('answer_refine.meta', 'r', encoding='utf-8'))
-
 y_true = []
 y_pred = []
 for qid, v in refine.items():
-    y_true.append(meta[qid]['class'])
+    y_true.append(v['true_label'])
 
     logits = v['refine_logits']
     sum_logits = np.sum(np.stack(logits, axis=-1), axis=-1)

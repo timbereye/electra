@@ -498,9 +498,9 @@ class QATask(task.Task):
                 positions, depth=max_len, dtype=tf.float32)
             log_probs = tf.nn.log_softmax(logits, axis=-1)
             if weight is None:
-                weight = tf.ones([1, max_len])
+                weight = tf.ones([1, max_len], dtype=tf.float32)
             elif isinstance(weight, list):
-                weight = tf.expand_dims(weight, axis=0)
+                weight = tf.cast(tf.expand_dims(weight, axis=0), dtype=tf.float32)
             loss = -tf.reduce_sum(one_hot_positions * log_probs * weight, axis=-1)
             return loss
 

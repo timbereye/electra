@@ -272,7 +272,7 @@ class SpanBasedQAScorer(scorer.Scorer):
                 k: float(v) for k, v in six.iteritems(scores_diff_json)},
                 self._config.qa_na_file(self._name))
         import pickle
-        pickle.dump(refine, open('gs://albert-root/refine.pkl', 'wb'))
+        pickle.dump(refine, open('refine.pkl', 'wb'))
 
 
 def _get_best_indexes(logits, n_best_size):

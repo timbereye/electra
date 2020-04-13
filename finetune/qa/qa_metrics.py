@@ -34,7 +34,7 @@ from util import utils
 RawResult = collections.namedtuple("RawResult", [
     "unique_id", "start_logits", "end_logits", "answerable_logit",
     "start_top_log_probs", "start_top_index", "end_top_log_probs",
-    "end_top_index"
+    "end_top_index", "refine_logits"
 ])
 
 
@@ -66,6 +66,7 @@ class SpanBasedQAScorer(scorer.Scorer):
                 start_top_index=results["start_top_index"],
                 end_top_log_probs=results["end_top_log_probs"],
                 end_top_index=results["end_top_index"],
+                refine_logits=results["refine_logit"]
             ))
         self._total_loss += results["loss"]
 
@@ -89,6 +90,8 @@ class SpanBasedQAScorer(scorer.Scorer):
     def write_predictions(self):
         """Write final predictions to the json file."""
         unique_id_to_result = {}
+        import pickle
+        pickle.dump(self._all_results, open('all_results.pkl', 'wb'))
         for result in self._all_results:
             unique_id_to_result[result.unique_id] = result
 

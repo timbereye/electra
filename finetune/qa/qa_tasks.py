@@ -544,7 +544,7 @@ class QATask(task.Task):
             start_top_index=start_top_index,
             end_top_log_probs=end_top_log_probs,
             end_top_index=end_top_index,
-            refine_logit=refine_logit,
+            refine_logits=refine_logit,
             eid=features[self.name + "_eid"],
         )
 

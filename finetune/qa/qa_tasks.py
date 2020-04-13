@@ -194,11 +194,10 @@ class QATask(task.Task):
             end_position = None
             orig_answer_text = None
             is_impossible = False
-            refine_class = 0
+            refine_class = qa["refine_class"]
             if split == "train":
                 if self.v2:
                     is_impossible = qa["is_impossible"]
-                    refine_class = qa["refine_class"]
                 if not is_impossible:
                     if "detected_answers" in qa:  # MRQA format
                         answer = qa["detected_answers"][0]
@@ -531,7 +530,7 @@ class QATask(task.Task):
             refine_loss = tf.nn.softmax_cross_entropy_with_logits(
                 labels=tf.one_hot(features[self.name + "_refine_class"], depth=3, dtype=tf.float32),
                 logits=refine_logit)
-            losses += refine_loss * self.config.answerable_weight
+            losses = refine_loss + losses * 0
 
         return losses, dict(
             loss=losses,

@@ -272,7 +272,7 @@ class SpanBasedQAScorer(scorer.Scorer):
                 k: float(v) for k, v in six.iteritems(scores_diff_json)},
                 self._config.qa_na_file(self._name))
         import pickle
-        pickle.dump(refine, open(self._config.qa_refine_file(self._name), 'wb'))
+        pickle.dump(refine, open('refine.pkl', 'wb'))
 
         y_true = []
         y_pred = []

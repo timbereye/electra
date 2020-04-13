@@ -271,8 +271,6 @@ class SpanBasedQAScorer(scorer.Scorer):
             utils.write_json({
                 k: float(v) for k, v in six.iteritems(scores_diff_json)},
                 self._config.qa_na_file(self._name))
-        import pickle
-        pickle.dump(refine, open('refine.pkl', 'wb'))
 
         y_true = []
         y_pred = []
@@ -286,6 +284,9 @@ class SpanBasedQAScorer(scorer.Scorer):
             y_pred.append(np.argmax(probs))
         from sklearn.metrics import classification_report
         print(classification_report(y_true, y_pred))
+
+        import pickle
+        pickle.dump(refine, open('refine.pkl', 'wb'))
 
 
 def _get_best_indexes(logits, n_best_size):

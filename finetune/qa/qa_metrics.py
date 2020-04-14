@@ -55,7 +55,7 @@ class SpanBasedQAScorer(scorer.Scorer):
     def update(self, results):
         super(SpanBasedQAScorer, self).update(results)
         self._all_results.append(
-            RawResult(
+            dict(
                 unique_id=results["eid"],
                 loss=results["loss"],
                 predictions=results["predictions"],
@@ -84,7 +84,7 @@ class SpanBasedQAScorer(scorer.Scorer):
         """Write final predictions to the json file."""
         unique_id_to_result = {}
         for result in self._all_results:
-            unique_id_to_result[result.unique_id] = result
+            unique_id_to_result[result["unique_id"]] = result
 
         results = {}
         for example in self._eval_examples:

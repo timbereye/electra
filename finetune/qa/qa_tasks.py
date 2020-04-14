@@ -194,7 +194,7 @@ class QATask(task.Task):
             end_position = None
             orig_answer_text = None
             is_impossible = False
-            refine_class = qa["refine_class"]
+            refine_class = qa.get("refine_class", 0)
             if split == "train":
                 if self.v2:
                     is_impossible = qa["is_impossible"]

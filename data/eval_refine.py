@@ -16,6 +16,8 @@ for qid, v in refine.items():
     sum_logits = np.sum(np.stack(logits, axis=-1), axis=-1)
     probs = _compute_softmax(sum_logits.tolist())
 
-    y_pred.append(np.argmax(probs))
+    pred = np.argmax(probs)
+    pred = pred if probs[pred] > 0.8 else 0
+    y_pred.append(pred)
 
 print(classification_report(y_true, y_pred))

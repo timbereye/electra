@@ -509,10 +509,7 @@ class QATask(task.Task):
                 start_p = tf.nn.softmax(start_logits)
                 start_feature = tf.reduce_sum(tf.expand_dims(start_p, -1) *
                                               final_hidden, axis=1)
-                end_p = tf.nn.softmax(end_logits)
-                end_feature = tf.reduce_sum(tf.expand_dims(end_p, -1) *
-                                            final_hidden, axis=1)
-                final_repr = tf.concat([final_repr, start_feature, end_feature], -1)
+                final_repr = tf.concat([final_repr, start_feature], -1)
                 final_repr = tf.layers.dense(final_repr, 512,
                                              activation=modeling.gelu)
             answerable_logit = tf.squeeze(tf.layers.dense(final_repr, 1), -1)

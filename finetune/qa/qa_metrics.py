@@ -287,7 +287,7 @@ class SpanBasedQAScorer(scorer.Scorer):
 
         import pickle
         pickle.dump(refine, open('refine.pkl', 'wb'))
-        pickle.dump(all_nbest_json, open("all_nbest_file", 'wb'))
+        pickle.dump(all_nbest_json, open("all_nbest_file.pkl", 'wb'))
 
 
 def _get_best_indexes(logits, n_best_size):

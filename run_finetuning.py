@@ -210,21 +210,23 @@ class ModelRunner(object):
         predict_input_fn, _ = self._preprocessor.prepare_predict(tasks, split)
         results = self._estimator.predict(input_fn=predict_input_fn,
                                           yield_single_examples=True)
+        import pickle
+        pickle.dump(results, open('predict_results.pkl', 'wb'))
         # task name -> eid -> model-logits
-        logits = collections.defaultdict(dict)
-        for r in results:
-            if r["task_id"] != len(self._tasks):
-                r = utils.nest_dict(r, self._config.task_names)
-                task_name = self._config.task_names[r["task_id"]]
-                logits[task_name][r[task_name]["eid"]] = (
-                    r[task_name]["logits"] if "logits" in r[task_name]
-                    else r[task_name]["predictions"])
-        for task_name in logits:
-            utils.log("Pickling predictions for {:} {:} examples ({:})".format(
-                len(logits[task_name]), task_name, split))
-            if trial <= self._config.n_writes_test:
-                utils.write_pickle(logits[task_name], self._config.test_predictions(
-                    task_name, split, trial))
+        # logits = collections.defaultdict(dict)
+        # for r in results:
+        #     if r["task_id"] != len(self._tasks):
+        #         r = utils.nest_dict(r, self._config.task_names)
+        #         task_name = self._config.task_names[r["task_id"]]
+        #         logits[task_name][r[task_name]["eid"]] = (
+        #             r[task_name]["logits"] if "logits" in r[task_name]
+        #             else r[task_name]["predictions"])
+        # for task_name in logits:
+        #     utils.log("Pickling predictions for {:} {:} examples ({:})".format(
+        #         len(logits[task_name]), task_name, split))
+        #     if trial <= self._config.n_writes_test:
+        #         utils.write_pickle(logits[task_name], self._config.test_predictions(
+        #             task_name, split, trial))
 
 
 def write_results(config: configure_finetuning.FinetuningConfig, results):

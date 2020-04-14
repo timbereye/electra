@@ -45,6 +45,7 @@ class QAExample(task.Example):
                  qid,
                  question_text,
                  doc_tokens,
+                 f1_score,
                  orig_answer_text=None,
                  start_position=None,
                  end_position=None,
@@ -59,6 +60,7 @@ class QAExample(task.Example):
         self.start_position = start_position
         self.end_position = end_position
         self.is_impossible = is_impossible
+        self.f1_score = f1_score
 
     def __str__(self):
         return self.__repr__()
@@ -169,32 +171,34 @@ class QATask(task.Task):
         self.v2 = v2
 
     def _add_examples(self, examples, example_failures, paragraph, split):
-        paragraph_text = paragraph["context"]
-        doc_tokens = []
-        char_to_word_offset = []
-        prev_is_whitespace = True
-        for c in paragraph_text:
-            if is_whitespace(c):
-                prev_is_whitespace = True
-            else:
-                if prev_is_whitespace:
-                    doc_tokens.append(c)
-                else:
-                    doc_tokens[-1] += c
-                prev_is_whitespace = False
-            char_to_word_offset.append(len(doc_tokens) - 1)
-
         for qa in paragraph["qas"]:
             qas_id = qa["id"] if "id" in qa else None
             qid = qa["qid"] if "qid" in qa else None
             question_text = qa["question"]
+
+            pred_answer = qa["pred_answer"]
+            doc_tokens = []
+            char_to_word_offset = []
+            prev_is_whitespace = True
+            for c in pred_answer:
+                if is_whitespace(c):
+                    prev_is_whitespace = True
+                else:
+                    if prev_is_whitespace:
+                        doc_tokens.append(c)
+                    else:
+                        doc_tokens[-1] += c
+                    prev_is_whitespace = False
+                char_to_word_offset.append(len(doc_tokens) - 1)
+
+            f1_score = qa["f1_score"] * 100
             start_position = None
             end_position = None
             orig_answer_text = None
-            is_impossible = False
+            is_impossible = True
             if split == "train":
                 if self.v2:
-                    is_impossible = qa["is_impossible"]
+                    is_impossible = True
                 if not is_impossible:
                     if "detected_answers" in qa:  # MRQA format
                         answer = qa["detected_answers"][0]
@@ -245,15 +249,14 @@ class QATask(task.Task):
                 orig_answer_text=orig_answer_text,
                 start_position=start_position,
                 end_position=end_position,
-                is_impossible=is_impossible)
+                is_impossible=is_impossible,
+                f1_score=f1_score)
             examples.append(example)
 
     def get_feature_specs(self):
         return [
             feature_spec.FeatureSpec(self.name + "_eid", []),
-            feature_spec.FeatureSpec(self.name + "_start_positions", []),
-            feature_spec.FeatureSpec(self.name + "_end_positions", []),
-            feature_spec.FeatureSpec(self.name + "_is_impossible", []),
+            feature_spec.FeatureSpec(self.name + "_f1_score", [], is_int_feature=False),
         ]
 
     def featurize(self, example: QAExample, is_training, log=False,
@@ -409,128 +412,30 @@ class QATask(task.Task):
                 })
             if is_training:
                 features.update({
-                    self.name + "_start_positions": start_position,
-                    self.name + "_end_positions": end_position,
-                    self.name + "_is_impossible": example.is_impossible
+                    self.name + "_f1_score": example.f1_score
                 })
             all_features.append(features)
         return all_features
 
     def get_prediction_module(self, bert_model, features, is_training,
                               percent_done):
-        final_hidden = bert_model.get_sequence_output()
+        reprs = bert_model.get_pooled_output()
+        if is_training:
+            reprs = tf.nn.dropout(reprs, keep_prob=0.9)
 
-        final_hidden_shape = modeling.get_shape_list(final_hidden, expected_rank=3)
-        batch_size = final_hidden_shape[0]
-        seq_length = final_hidden_shape[1]
+        predictions = tf.layers.dense(reprs, 1)
+        predictions = tf.squeeze(predictions, -1)
 
-        answer_mask = tf.cast(features["input_mask"], tf.float32)
-        answer_mask *= tf.cast(features["segment_ids"], tf.float32)
-        answer_mask += tf.one_hot(0, seq_length)
-
-        start_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
-
-        start_top_log_probs = tf.zeros([batch_size, self.config.beam_size])
-        start_top_index = tf.zeros([batch_size, self.config.beam_size], tf.int32)
-        end_top_log_probs = tf.zeros([batch_size, self.config.beam_size,
-                                      self.config.beam_size])
-        end_top_index = tf.zeros([batch_size, self.config.beam_size,
-                                  self.config.beam_size], tf.int32)
-        if self.config.joint_prediction:
-            start_logits += 1000.0 * (answer_mask - 1)
-            start_log_probs = tf.nn.log_softmax(start_logits)
-            start_top_log_probs, start_top_index = tf.nn.top_k(
-                start_log_probs, k=self.config.beam_size)
-
-            if not is_training:
-                # batch, beam, length, hidden
-                end_features = tf.tile(tf.expand_dims(final_hidden, 1),
-                                       [1, self.config.beam_size, 1, 1])
-                # batch, beam, length
-                start_index = tf.one_hot(start_top_index,
-                                         depth=seq_length, axis=-1, dtype=tf.float32)
-                # batch, beam, hidden
-                start_features = tf.reduce_sum(
-                    tf.expand_dims(final_hidden, 1) *
-                    tf.expand_dims(start_index, -1), axis=-2)
-                # batch, beam, length, hidden
-                start_features = tf.tile(tf.expand_dims(start_features, 2),
-                                         [1, 1, seq_length, 1])
-            else:
-                start_index = tf.one_hot(
-                    features[self.name + "_start_positions"], depth=seq_length,
-                    axis=-1, dtype=tf.float32)
-                start_features = tf.reduce_sum(tf.expand_dims(start_index, -1) *
-                                               final_hidden, axis=1)
-                start_features = tf.tile(tf.expand_dims(start_features, 1),
-                                         [1, seq_length, 1])
-                end_features = final_hidden
-
-            final_repr = tf.concat([start_features, end_features], -1)
-            final_repr = tf.layers.dense(final_repr, 512, activation=modeling.gelu,
-                                         name="qa_hidden")
-            # batch, beam, length (batch, length when training)
-            end_logits = tf.squeeze(tf.layers.dense(final_repr, 1), -1,
-                                    name="qa_logits")
-            if is_training:
-                end_logits += 1000.0 * (answer_mask - 1)
-            else:
-                end_logits += tf.expand_dims(1000.0 * (answer_mask - 1), 1)
-
-            if not is_training:
-                end_log_probs = tf.nn.log_softmax(end_logits)
-                end_top_log_probs, end_top_index = tf.nn.top_k(
-                    end_log_probs, k=self.config.beam_size)
-                end_logits = tf.zeros([batch_size, seq_length])
-        else:
-            end_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
-            start_logits += 1000.0 * (answer_mask - 1)
-            end_logits += 1000.0 * (answer_mask - 1)
-
-        def compute_loss(logits, positions):
-            one_hot_positions = tf.one_hot(
-                positions, depth=seq_length, dtype=tf.float32)
-            log_probs = tf.nn.log_softmax(logits, axis=-1)
-            loss = -tf.reduce_sum(one_hot_positions * log_probs, axis=-1)
-            return loss
-
-        start_positions = features[self.name + "_start_positions"]
-        end_positions = features[self.name + "_end_positions"]
-
-        start_loss = compute_loss(start_logits, start_positions)
-        end_loss = compute_loss(end_logits, end_positions)
-
-        losses = (start_loss + end_loss) / 2.0
-
-        answerable_logit = tf.zeros([batch_size])
-        if self.config.answerable_classifier:
-            final_repr = final_hidden[:, 0]
-            if self.config.answerable_uses_start_logits:
-                start_p = tf.nn.softmax(start_logits)
-                start_feature = tf.reduce_sum(tf.expand_dims(start_p, -1) *
-                                              final_hidden, axis=1)
-                final_repr = tf.concat([final_repr, start_feature], -1)
-                final_repr = tf.layers.dense(final_repr, 512,
-                                             activation=modeling.gelu)
-            answerable_logit = tf.squeeze(tf.layers.dense(final_repr, 1), -1)
-            answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
-                labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
-                logits=answerable_logit)
-            losses += answerable_loss * self.config.answerable_weight
-
-        return losses, dict(
+        targets = features[self.name + "_f1_score"]
+        losses = tf.square(predictions - targets)
+        outputs = dict(
             loss=losses,
-            start_logits=start_logits,
-            end_logits=end_logits,
-            answerable_logit=answerable_logit,
-            start_positions=features[self.name + "_start_positions"],
-            end_positions=features[self.name + "_end_positions"],
-            start_top_log_probs=start_top_log_probs,
-            start_top_index=start_top_index,
-            end_top_log_probs=end_top_log_probs,
-            end_top_index=end_top_index,
-            eid=features[self.name + "_eid"],
+            predictions=predictions,
+            targets=features[self.name + "_f1_score"],
+            eid=features[self.name + "_eid"]
         )
+
+        return losses, outputs
 
     def get_scorer(self, split="dev"):
         return qa_metrics.SpanBasedQAScorer(self.config, self, split, self.v2)

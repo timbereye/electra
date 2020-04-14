@@ -192,14 +192,15 @@ class ModelRunner(object):
         eval_input_fn, _ = self._preprocessor.prepare_predict([task], split)
         results = self._estimator.predict(input_fn=eval_input_fn,
                                           yield_single_examples=True)
-        import pickle
-        pickle.dump(list(results), open('predict_results.pkl', 'wb'))
 
-        # scorer = task.get_scorer()
-        # for r in results:
-        #     if r["task_id"] != len(self._tasks):  # ignore padding examples
-        #         r = utils.nest_dict(r, self._config.task_names)
-        #         scorer.update(r[task.name])
+        eval_examples = task.get_examples(split)
+
+        scorer = task.get_scorer()
+        for r in results:
+            if r["task_id"] != len(self._tasks):  # ignore padding examples
+                r = utils.nest_dict(r, self._config.task_names)
+                scorer.update(r[task.name])
+        scorer.write_predictions()
         # if return_results:
         #     utils.log(task.name + ": " + scorer.results_str())
         #     utils.log()
@@ -279,28 +280,28 @@ def run_finetuning(config: configure_finetuning.FinetuningConfig):
         if config.do_eval:
             heading("Run dev set evaluation")
             results.append(model_runner.evaluate())
-            write_results(config, results)
-            if config.write_test_outputs and trial <= config.n_writes_test:
-                heading("Running on the test set and writing the predictions")
-                for task in tasks:
-                    # Currently only writing preds for GLUE and SQuAD 2.0 is supported
-                    if task.name in ["cola", "mrpc", "mnli", "sst", "rte", "qnli", "qqp",
-                                     "sts"]:
-                        for split in task.get_test_splits():
-                            model_runner.write_classification_outputs([task], trial, split)
-                    elif task.name == "squad":
-                        scorer = model_runner.evaluate_task(task, "test", False)
-                        scorer.write_predictions()
-                        preds = utils.load_json(config.qa_preds_file("squad"))
-                        null_odds = utils.load_json(config.qa_na_file("squad"))
-                        for q, _ in preds.items():
-                            if null_odds[q] > config.qa_na_threshold:
-                                preds[q] = ""
-                        utils.write_json(preds, config.test_predictions(
-                            task.name, "test", trial))
-                    else:
-                        utils.log("Skipping task", task.name,
-                                  "- writing predictions is not supported for this task")
+            # write_results(config, results)
+            # if config.write_test_outputs and trial <= config.n_writes_test:
+            #     heading("Running on the test set and writing the predictions")
+            #     for task in tasks:
+            #         # Currently only writing preds for GLUE and SQuAD 2.0 is supported
+            #         if task.name in ["cola", "mrpc", "mnli", "sst", "rte", "qnli", "qqp",
+            #                          "sts"]:
+            #             for split in task.get_test_splits():
+            #                 model_runner.write_classification_outputs([task], trial, split)
+            #         elif task.name == "squad":
+            #             scorer = model_runner.evaluate_task(task, "test", False)
+            #             scorer.write_predictions()
+            #             preds = utils.load_json(config.qa_preds_file("squad"))
+            #             null_odds = utils.load_json(config.qa_na_file("squad"))
+            #             for q, _ in preds.items():
+            #                 if null_odds[q] > config.qa_na_threshold:
+            #                     preds[q] = ""
+            #             utils.write_json(preds, config.test_predictions(
+            #                 task.name, "test", trial))
+            #         else:
+            #             utils.log("Skipping task", task.name,
+            #                       "- writing predictions is not supported for this task")
 
         if trial != config.num_trials and (not config.keep_all_models):
             utils.rmrf(config.model_dir)

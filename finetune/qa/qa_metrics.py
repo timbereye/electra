@@ -92,180 +92,22 @@ class SpanBasedQAScorer(scorer.Scorer):
         for result in self._all_results:
             unique_id_to_result[result.unique_id] = result
 
-        _PrelimPrediction = collections.namedtuple(  # pylint: disable=invalid-name
-            "PrelimPrediction",
-            ["feature_index", "start_index", "end_index", "start_logit",
-             "end_logit"])
-
-        all_predictions = collections.OrderedDict()
-        all_nbest_json = collections.OrderedDict()
-        scores_diff_json = collections.OrderedDict()
-
+        results = {}
         for example in self._eval_examples:
             example_id = example.qas_id if "squad" in self._name else example.qid
             features = self._task.featurize(example, False, for_eval=True)
 
-            prelim_predictions = []
-            # keep track of the minimum score of null start+end of position 0
-            score_null = 1000000  # large and positive
+            results[example_id] = []
             for (feature_index, feature) in enumerate(features):
                 result = unique_id_to_result[feature[self._name + "_eid"]]
-                if self._config.joint_prediction:
-                    start_indexes = result.start_top_index
-                    end_indexes = result.end_top_index
-                else:
-                    start_indexes = _get_best_indexes(result.start_logits,
-                                                      self._config.n_best_size)
-                    end_indexes = _get_best_indexes(result.end_logits,
-                                                    self._config.n_best_size)
-                # if we could have irrelevant answers, get the min score of irrelevant
-                if self._v2:
-                    if self._config.answerable_classifier:
-                        feature_null_score = result.answerable_logit
-                    else:
-                        feature_null_score = result.start_logits[0] + result.end_logits[0]
-                    if feature_null_score < score_null:
-                        score_null = feature_null_score
-                for i, start_index in enumerate(start_indexes):
-                    for j, end_index in enumerate(
-                            end_indexes[i] if self._config.joint_prediction else end_indexes):
-                        # We could hypothetically create invalid predictions, e.g., predict
-                        # that the start of the span is in the question. We throw out all
-                        # invalid predictions.
-                        if start_index >= len(feature[self._name + "_tokens"]):
-                            continue
-                        if end_index >= len(feature[self._name + "_tokens"]):
-                            continue
-                        if start_index == 0:
-                            continue
-                        if start_index not in feature[self._name + "_token_to_orig_map"]:
-                            continue
-                        if end_index not in feature[self._name + "_token_to_orig_map"]:
-                            continue
-                        if not feature[self._name + "_token_is_max_context"].get(
-                                start_index, False):
-                            continue
-                        if end_index < start_index:
-                            continue
-                        length = end_index - start_index + 1
-                        if length > self._config.max_answer_length:
-                            continue
-                        start_logit = (result.start_top_log_probs[i] if
-                                       self._config.joint_prediction else
-                                       result.start_logits[start_index])
-                        end_logit = (result.end_top_log_probs[i, j] if
-                                     self._config.joint_prediction else
-                                     result.end_logits[end_index])
-                        prelim_predictions.append(
-                            _PrelimPrediction(
-                                feature_index=feature_index,
-                                start_index=start_index,
-                                end_index=end_index,
-                                start_logit=start_logit,
-                                end_logit=end_logit))
 
-            if self._v2:
-                if len(prelim_predictions) == 0 and self._config.debug:
-                    tokid = sorted(feature[self._name + "_token_to_orig_map"].keys())[0]
-                    prelim_predictions.append(_PrelimPrediction(
-                        feature_index=0,
-                        start_index=tokid,
-                        end_index=tokid + 1,
-                        start_logit=1.0,
-                        end_logit=1.0))
-            prelim_predictions = sorted(
-                prelim_predictions,
-                key=lambda x: (x.start_logit + x.end_logit),
-                reverse=True)
+                results[example_id].append(result)
 
-            _NbestPrediction = collections.namedtuple(  # pylint: disable=invalid-name
-                "NbestPrediction", ["text", "start_logit", "end_logit"])
+        import pickle
+        pickle.dump(list(results), open('predict_results.pkl', 'wb'))
 
-            seen_predictions = {}
-            nbest = []
-            for pred in prelim_predictions:
-                if len(nbest) >= self._config.n_best_size:
-                    break
-                feature = features[pred.feature_index]
-                tok_tokens = feature[self._name + "_tokens"][
-                             pred.start_index:(pred.end_index + 1)]
-                orig_doc_start = feature[
-                    self._name + "_token_to_orig_map"][pred.start_index]
-                orig_doc_end = feature[
-                    self._name + "_token_to_orig_map"][pred.end_index]
-                orig_tokens = example.doc_tokens[orig_doc_start:(orig_doc_end + 1)]
-                tok_text = " ".join(tok_tokens)
 
-                # De-tokenize WordPieces that have been split off.
-                tok_text = tok_text.replace(" ##", "")
-                tok_text = tok_text.replace("##", "")
 
-                # Clean whitespace
-                tok_text = tok_text.strip()
-                tok_text = " ".join(tok_text.split())
-                orig_text = " ".join(orig_tokens)
-
-                final_text = get_final_text(self._config, tok_text, orig_text)
-                if final_text in seen_predictions:
-                    continue
-
-                seen_predictions[final_text] = True
-
-                nbest.append(
-                    _NbestPrediction(
-                        text=final_text,
-                        start_logit=pred.start_logit,
-                        end_logit=pred.end_logit))
-
-            # In very rare edge cases we could have no valid predictions. So we
-            # just create a nonce prediction in this case to avoid failure.
-            if not nbest:
-                nbest.append(
-                    _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0))
-
-            assert len(nbest) >= 1
-
-            total_scores = []
-            best_non_null_entry = None
-            for entry in nbest:
-                total_scores.append(entry.start_logit + entry.end_logit)
-                if not best_non_null_entry:
-                    if entry.text:
-                        best_non_null_entry = entry
-
-            probs = _compute_softmax(total_scores)
-
-            nbest_json = []
-            for (i, entry) in enumerate(nbest):
-                output = collections.OrderedDict()
-                output["text"] = entry.text
-                output["probability"] = probs[i]
-                output["start_logit"] = entry.start_logit
-                output["end_logit"] = entry.end_logit
-                nbest_json.append(dict(output))
-
-            assert len(nbest_json) >= 1
-
-            if not self._v2:
-                all_predictions[example_id] = nbest_json[0]["text"]
-            else:
-                # predict "" iff the null score - the score of best non-null > threshold
-                if self._config.answerable_classifier:
-                    score_diff = score_null
-                else:
-                    score_diff = score_null - best_non_null_entry.start_logit - (
-                        best_non_null_entry.end_logit)
-                scores_diff_json[example_id] = score_diff
-                all_predictions[example_id] = best_non_null_entry.text
-
-            all_nbest_json[example_id] = nbest_json
-
-        utils.write_json(dict(all_predictions),
-                         self._config.qa_preds_file(self._name))
-        if self._v2:
-            utils.write_json({
-                k: float(v) for k, v in six.iteritems(scores_diff_json)},
-                self._config.qa_na_file(self._name))
 
 
 def _get_best_indexes(logits, n_best_size):

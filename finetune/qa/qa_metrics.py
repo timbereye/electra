@@ -32,9 +32,7 @@ from model import tokenization
 from util import utils
 
 RawResult = collections.namedtuple("RawResult", [
-    "unique_id", "start_logits", "end_logits", "answerable_logit",
-    "start_top_log_probs", "start_top_index", "end_top_log_probs",
-    "end_top_index"
+    "unique_id", "losses", "predictions", "targets"
 ])
 
 
@@ -57,7 +55,12 @@ class SpanBasedQAScorer(scorer.Scorer):
     def update(self, results):
         super(SpanBasedQAScorer, self).update(results)
         self._all_results.append(
-            results)
+            RawResult(
+                unique_id=results["eid"],
+                losses=results["losses"],
+                predictions=results["predictions"],
+                targets=results["targets"],
+            ))
         self._total_loss += results["loss"]
 
     def get_loss(self):
@@ -96,9 +99,6 @@ class SpanBasedQAScorer(scorer.Scorer):
 
         import pickle
         pickle.dump(list(results), open('predict_results.pkl', 'wb'))
-
-
-
 
 
 def _get_best_indexes(logits, n_best_size):

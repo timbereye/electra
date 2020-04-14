@@ -192,17 +192,20 @@ class ModelRunner(object):
         eval_input_fn, _ = self._preprocessor.prepare_predict([task], split)
         results = self._estimator.predict(input_fn=eval_input_fn,
                                           yield_single_examples=True)
-        scorer = task.get_scorer()
-        for r in results:
-            if r["task_id"] != len(self._tasks):  # ignore padding examples
-                r = utils.nest_dict(r, self._config.task_names)
-                scorer.update(r[task.name])
-        if return_results:
-            utils.log(task.name + ": " + scorer.results_str())
-            utils.log()
-            return dict(scorer.get_results())
-        else:
-            return scorer
+        import pickle
+        pickle.dump(results, open('predict_results.pkl', 'wb'))
+
+        # scorer = task.get_scorer()
+        # for r in results:
+        #     if r["task_id"] != len(self._tasks):  # ignore padding examples
+        #         r = utils.nest_dict(r, self._config.task_names)
+        #         scorer.update(r[task.name])
+        # if return_results:
+        #     utils.log(task.name + ": " + scorer.results_str())
+        #     utils.log()
+        #     return dict(scorer.get_results())
+        # else:
+        #     return scorer
 
     def write_classification_outputs(self, tasks, trial, split):
         """Write classification predictions to disk."""

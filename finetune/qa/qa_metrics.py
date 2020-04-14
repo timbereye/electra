@@ -98,7 +98,7 @@ class SpanBasedQAScorer(scorer.Scorer):
                 results[example_id].append(result)
 
         import pickle
-        pickle.dump(list(results), open('predict_results.pkl', 'wb'))
+        pickle.dump(results, open('predict_results.pkl', 'wb'))
 
 
 def _get_best_indexes(logits, n_best_size):

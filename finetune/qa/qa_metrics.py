@@ -32,7 +32,7 @@ from model import tokenization
 from util import utils
 
 RawResult = collections.namedtuple("RawResult", [
-    "unique_id", "losses", "predictions", "targets"
+    "unique_id", "loss", "predictions", "targets"
 ])
 
 
@@ -57,7 +57,7 @@ class SpanBasedQAScorer(scorer.Scorer):
         self._all_results.append(
             RawResult(
                 unique_id=results["eid"],
-                losses=results["losses"],
+                loss=results["loss"],
                 predictions=results["predictions"],
                 targets=results["targets"],
             ))

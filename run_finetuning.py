@@ -193,7 +193,7 @@ class ModelRunner(object):
         results = self._estimator.predict(input_fn=eval_input_fn,
                                           yield_single_examples=True)
         import pickle
-        pickle.dump(results, open('predict_results.pkl', 'wb'))
+        pickle.dump(list(results), open('predict_results.pkl', 'wb'))
 
         # scorer = task.get_scorer()
         # for r in results:

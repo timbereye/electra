@@ -20,6 +20,8 @@ def generator_data(split='train'):
                 if not gold_answers:
                     continue
                 nbest = all_nbest[qid][:5]
+
+                most_text = nbest[0]['text']
                 new_qa = []
                 for i, nb in enumerate(nbest):
                     pred = nb['text']
@@ -27,12 +29,14 @@ def generator_data(split='train'):
                         a = qa['answers'][0]['text']
                         f1 = compute_f1(a, pred)
                     else:
-                        f1 = 0.
-                    new_qa.append({"f1_score": f1,
-                                   "pred_answer": pred,
-                                   "question": qa['question'],
-                                   "id": f"{qid}_{i}"})
-                new_qas.extend(new_qa)
+                        f1 = max(compute_f1(a['text'], pred) for a in gold_answers)
+                    if pred in most_text or most_text in pred:
+                        new_qa.append({"f1_score": f1,
+                                       "pred_answer": pred,
+                                       "question": qa['question'],
+                                       "id": f"{qid}_{i}"})
+                if new_qa[0]["f1_score"] > 0:
+                    new_qas.extend(new_qa)
             p['qas'] = new_qas
             count += len(new_qas)
 
@@ -41,4 +45,4 @@ def generator_data(split='train'):
     json.dump(data, open(f'{split}.json', 'w', encoding='utf-8'))
 
 
-generator_data('dev')
+generator_data('train')

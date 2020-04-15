@@ -191,7 +191,7 @@ class QATask(task.Task):
                     prev_is_whitespace = False
                 char_to_word_offset.append(len(doc_tokens) - 1)
 
-            f1_score = qa.get("f1_score", 0.) * 100
+            f1_score = qa.get("f1_score", 0.)
             start_position = None
             end_position = None
             orig_answer_text = None

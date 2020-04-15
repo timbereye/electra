@@ -87,6 +87,7 @@ class SpanBasedQAScorer(scorer.Scorer):
             unique_id_to_result[result["unique_id"]] = result
 
         results = {}
+        total_loss = 0.
         for example in self._eval_examples:
             example_id = example.qas_id if "squad" in self._name else example.qid
             features = self._task.featurize(example, False, for_eval=True)
@@ -96,10 +97,14 @@ class SpanBasedQAScorer(scorer.Scorer):
                 result = unique_id_to_result[feature[self._name + "_eid"]]
                 result['targets'] = feature[self._name + "_f1_score"]
 
+                total_loss += (result['targets'] - result['predictions']) ** 2
+
                 results[example_id].append(result)
+            total_loss /= len(results)
 
         import pickle
         pickle.dump(results, open('predict_results.pkl', 'wb'))
+        utils.log(f"total_loss: {total_loss}")
 
 
 def _get_best_indexes(logits, n_best_size):

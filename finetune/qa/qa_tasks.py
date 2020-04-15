@@ -191,7 +191,7 @@ class QATask(task.Task):
                     prev_is_whitespace = False
                 char_to_word_offset.append(len(doc_tokens) - 1)
 
-            f1_score = qa["f1_score"] * 100
+            f1_score = qa.get("f1_score", 0.) * 100
             start_position = None
             end_position = None
             orig_answer_text = None
@@ -409,6 +409,7 @@ class QATask(task.Task):
                     self.name + "_tokens": tokens,
                     self.name + "_token_to_orig_map": token_to_orig_map,
                     self.name + "_token_is_max_context": token_is_max_context,
+                    self.name + "_f1_score": example.f1_score,
                 })
             if is_training:
                 features.update({

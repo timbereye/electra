@@ -94,6 +94,7 @@ class SpanBasedQAScorer(scorer.Scorer):
             results[example_id] = []
             for (feature_index, feature) in enumerate(features):
                 result = unique_id_to_result[feature[self._name + "_eid"]]
+                result['targets'] = feature[self._name + "_f1_score"]
 
                 results[example_id].append(result)
 

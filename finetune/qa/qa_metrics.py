@@ -100,7 +100,7 @@ class SpanBasedQAScorer(scorer.Scorer):
                 total_loss += (result['targets'] - result['predictions']) ** 2
 
                 results[example_id].append(result)
-            total_loss /= len(results)
+        total_loss /= len(results)
 
         import pickle
         pickle.dump(results, open('predict_results.pkl', 'wb'))

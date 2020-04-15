@@ -82,7 +82,7 @@ class FinetuningConfig(object):
         self.n_best_size = 20  # number of predictions per example to save
         self.max_answer_length = 30  # filter out answers longer than this length
         self.answerable_classifier = True  # answerable classifier for SQuAD 2.0
-        self.answerable_uses_start_logits = True  # more advanced answerable
+        self.answerable_uses_start_logits = False  # more advanced answerable
         # classifier using predicted start
         self.answerable_weight = 0.5  # weight for answerability loss
         self.joint_prediction = True  # jointly predict the start and end positions

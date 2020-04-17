@@ -44,6 +44,7 @@ class QAExample(task.Example):
                  qas_id,
                  qid,
                  question_text,
+                 candidate_answer,
                  doc_tokens,
                  f1_score,
                  orig_answer_text=None,
@@ -55,6 +56,7 @@ class QAExample(task.Example):
         self.qas_id = qas_id
         self.qid = qid
         self.question_text = question_text
+        self.candidate_answer = candidate_answer
         self.doc_tokens = doc_tokens
         self.orig_answer_text = orig_answer_text
         self.start_position = start_position
@@ -171,25 +173,27 @@ class QATask(task.Task):
         self.v2 = v2
 
     def _add_examples(self, examples, example_failures, paragraph, split):
+        paragraph_text = paragraph["context"]
+        doc_tokens = []
+        char_to_word_offset = []
+        prev_is_whitespace = True
+        for c in paragraph_text:
+            if is_whitespace(c):
+                prev_is_whitespace = True
+            else:
+                if prev_is_whitespace:
+                    doc_tokens.append(c)
+                else:
+                    doc_tokens[-1] += c
+                prev_is_whitespace = False
+            char_to_word_offset.append(len(doc_tokens) - 1)
+
         for qa in paragraph["qas"]:
             qas_id = qa["id"] if "id" in qa else None
             qid = qa["qid"] if "qid" in qa else None
             question_text = qa["question"]
 
-            pred_answer = qa["pred_answer"]
-            doc_tokens = []
-            char_to_word_offset = []
-            prev_is_whitespace = True
-            for c in pred_answer:
-                if is_whitespace(c):
-                    prev_is_whitespace = True
-                else:
-                    if prev_is_whitespace:
-                        doc_tokens.append(c)
-                    else:
-                        doc_tokens[-1] += c
-                    prev_is_whitespace = False
-                char_to_word_offset.append(len(doc_tokens) - 1)
+            candidate_answer = qa["pred_answer"]
 
             f1_score = qa["f1_score"]
             start_position = None
@@ -245,6 +249,7 @@ class QATask(task.Task):
                 qas_id=qas_id,
                 qid=qid,
                 question_text=question_text,
+                candidate_answer=candidate_answer,
                 doc_tokens=doc_tokens,
                 orig_answer_text=orig_answer_text,
                 start_position=start_position,
@@ -263,6 +268,7 @@ class QATask(task.Task):
                   for_eval=False):
         all_features = []
         query_tokens = self._tokenizer.tokenize(example.question_text)
+        candidate_answer_tokens = self._tokenizer.tokenize(example.candidate_answer)
 
         if len(query_tokens) > self.config.max_query_length:
             query_tokens = query_tokens[0:self.config.max_query_length]
@@ -293,7 +299,7 @@ class QATask(task.Task):
                 example.orig_answer_text)
 
         # The -3 accounts for [CLS], [SEP] and [SEP]
-        max_tokens_for_doc = self.config.max_seq_length - len(query_tokens) - 3
+        max_tokens_for_doc = self.config.max_seq_length - len(query_tokens) - 4
 
         # We can have documents that are longer than the maximum sequence length.
         # To deal with this we do a sliding window approach, where we take chunks
@@ -319,6 +325,11 @@ class QATask(task.Task):
             tokens.append("[CLS]")
             segment_ids.append(0)
             for token in query_tokens:
+                tokens.append(token)
+                segment_ids.append(0)
+            tokens.append("[SEP]")
+            segment_ids.append(0)
+            for token in candidate_answer_tokens:
                 tokens.append(token)
                 segment_ids.append(0)
             tokens.append("[SEP]")

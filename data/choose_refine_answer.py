@@ -19,7 +19,7 @@ print("init eval:")
 xargs = f"python eval.py dev-v2.0.json squad_preds.json --na-prob-file squad_null_odds.json "
 os.system(xargs)
 
-answer_chooses = pickle.load(open('dev_f1_predict_results2.pkl', 'rb'))
+answer_chooses = pickle.load(open('dev_f1_predict_results3.pkl', 'rb'))
 nbest = pickle.load(open('dev_all_nbest_file.pkl', 'rb'))
 
 tmp_file = 'tmp_preds'
@@ -27,17 +27,17 @@ tmp_eval_file = 'tmp_eval_file'
 final_preds_file = 'final_preds.json'
 
 length = 5
-believe_f1_th = 0.8
+believe_f1_th = 0.7
 believe_prob_th = 0.2
 
 for qid in preds:
     chooses = (seq(range(length))
-               .map(lambda x: answer_chooses.get(f"{qid}_{x}", [None]))
-               .flatten()
+               .map(lambda x: answer_chooses.get(f"{qid}_{x}", None))
+               .map(lambda x: x if x is None else {'f1_pred': np.max([y['predictions'] for y in x])})
                .zip(nbest[qid][:length])
                .filter(lambda x: x[0])
                .map(lambda x: {'text': x[1]['text'],
-                               'f1_pred': x[0]['predictions'],
+                               'f1_pred': x[0]['f1_pred'],
                                'prob': x[1]['probability']})
                .sorted(lambda x: x['f1_pred'], reverse=True)
                ).list()

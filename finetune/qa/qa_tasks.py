@@ -476,7 +476,7 @@ class QATask(task.Task):
                     utils.log("answer: %s" % (tokenization.printable_text(answer_text)))
                 utils.log("ner_tags: %s" % str(self.ner_tags))
                 utils.log("ner_info: %s" % str(example.doc_tokens_ner))
-                utils.log("ner_targets: %s" % str(ner_targets))
+                utils.log("ner_targets length %d : %s" % (len(ner_targets), str(ner_targets)))
 
             features = {
                 "task_id": self.config.task_names.index(self.name),

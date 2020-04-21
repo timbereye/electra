@@ -218,6 +218,7 @@ class QATask(task.Task):
             if ner['ner_tag'].startswith("S-") or ner['ner_tag'].startswith("E-"):
                 ner_tag, token_ids = list(bucket.items())[0]
                 token_ids = seq(token_ids).map(lambda x: x - min_index).sorted().list()
+                print(token_ids)
 
                 if len(token_ids) == 1:
                     part_targets[token_ids[0]] = self.ner_tags.index(f"S-{ner_tag}")
@@ -229,6 +230,7 @@ class QATask(task.Task):
 
                 bucket = collections.defaultdict(lambda: [])
 
+        print(len(part_targets))
         targets.extend(part_targets)
 
     def _add_examples(self, examples, example_failures, paragraph, split):

@@ -335,7 +335,7 @@ class QATask(task.Task):
         all_features = []
         query_tokens = self._tokenizer.tokenize(example.question_text)
         query_tokens_ner = self._get_ner_info(example.question_text)
-        query_tokens_to_char_index = self._get_tokens_to_char_index(example.question_text, query_tokens)
+        query_tokens_to_char_index = self._get_tokens_to_char_index(example.question_text.lower(), query_tokens)
 
         if len(query_tokens) > self.config.max_query_length:
             query_tokens = query_tokens[0:self.config.max_query_length]
@@ -350,7 +350,7 @@ class QATask(task.Task):
                 tok_to_orig_index.append(i)
                 all_doc_tokens.append(sub_token)
 
-        doc_tokens_to_char_index = self._get_tokens_to_char_index(example.orig_paragraph_text, all_doc_tokens)
+        doc_tokens_to_char_index = self._get_tokens_to_char_index(example.orig_paragraph_text.lower(), all_doc_tokens)
 
         tok_start_position = None
         tok_end_position = None

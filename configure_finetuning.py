@@ -30,7 +30,7 @@ class FinetuningConfig(object):
     def __init__(self, model_name, data_dir, **kwargs):
         # general
         self.model_name = model_name
-        self.debug = True  # debug mode for quickly running things
+        self.debug = False  # debug mode for quickly running things
         self.log_examples = False  # print out some train examples for debugging
         self.num_trials = 1  # how many train+eval runs to perform
         self.do_train = True  # train a model

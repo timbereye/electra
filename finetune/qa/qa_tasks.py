@@ -48,11 +48,11 @@ class QAExample(task.Example):
                  question_text,
                  doc_tokens,
                  orig_answer_text=None,
+                 orig_paragraph_text=None,
                  start_position=None,
                  end_position=None,
                  is_impossible=False,
-                 doc_tokens_ner=None,
-                 doc_tokens_to_char_index=None):
+                 doc_tokens_ner=None):
         super(QAExample, self).__init__(task_name)
         self.eid = eid
         self.qas_id = qas_id
@@ -60,11 +60,11 @@ class QAExample(task.Example):
         self.question_text = question_text
         self.doc_tokens = doc_tokens
         self.orig_answer_text = orig_answer_text
+        self.orig_paragraph_text = orig_paragraph_text
         self.start_position = start_position
         self.end_position = end_position
         self.is_impossible = is_impossible
         self.doc_tokens_ner = doc_tokens_ner
-        self.doc_tokens_to_char_index = doc_tokens_to_char_index
 
     def __str__(self):
         return self.__repr__()
@@ -177,15 +177,7 @@ class QATask(task.Task):
         self.nlp = stanza.Pipeline('en', processors='tokenize,ner')
         self.ner_tags = []
 
-    def _get_ner_info(self, context, tokens):
-
-        tokens_to_char_index = {}
-        offset = 0
-        for i, token in enumerate(tokens):
-            index = context[offset:].find(token)
-            tokens_to_char_index[i] = (offset + index, offset + index + len(token))
-            offset += index + len(token)
-
+    def _get_ner_info(self, context):
         doc = self.nlp(context)
         ner_info = []
         for sent in doc.sentences:
@@ -198,7 +190,16 @@ class QATask(task.Task):
                 })
                 if token.ner not in self.ner_tags:
                     self.ner_tags.append(token.ner)
-        return ner_info, tokens_to_char_index
+        return ner_info
+
+    def _get_tokens_to_char_index(self, context, tokens):
+        tokens_to_char_index = {}
+        offset = 0
+        for i, token in enumerate(tokens):
+            index = context[offset:].find(token)
+            tokens_to_char_index[i] = (offset + index, offset + index + len(token))
+            offset += index + len(token)
+        return tokens_to_char_index
 
     def _add_ner_targets(self, targets, tokens_ner, tokens_to_char_index):
         part_targets = [self.ner_tags.index("O")] * len(tokens_to_char_index)
@@ -249,7 +250,7 @@ class QATask(task.Task):
                 prev_is_whitespace = False
             char_to_word_offset.append(len(doc_tokens) - 1)
 
-        ner_info, tokens_to_char_index = self._get_ner_info(paragraph_text, doc_tokens)
+        ner_info = self._get_ner_info(paragraph_text)
 
         for qa in paragraph["qas"]:
             qas_id = qa["id"] if "id" in qa else None
@@ -309,7 +310,7 @@ class QATask(task.Task):
                 qid=qid,
                 question_text=question_text,
                 doc_tokens=doc_tokens,
-                doc_tokens_to_char_index=tokens_to_char_index,
+                orig_paragraph_text=paragraph_text,
                 orig_answer_text=orig_answer_text,
                 start_position=start_position,
                 end_position=end_position,
@@ -329,7 +330,8 @@ class QATask(task.Task):
                   for_eval=False):
         all_features = []
         query_tokens = self._tokenizer.tokenize(example.question_text)
-        query_tokens_ner, query_tokens_to_char_index = self._get_ner_info(example.question_text, query_tokens)
+        query_tokens_ner = self._get_ner_info(example.question_text)
+        query_tokens_to_char_index = self._get_tokens_to_char_index(example.question_text, query_tokens)
 
         if len(query_tokens) > self.config.max_query_length:
             query_tokens = query_tokens[0:self.config.max_query_length]
@@ -343,6 +345,8 @@ class QATask(task.Task):
             for sub_token in sub_tokens:
                 tok_to_orig_index.append(i)
                 all_doc_tokens.append(sub_token)
+
+        doc_tokens_to_char_index = self._get_tokens_to_char_index(example.orig_paragraph_text, all_doc_tokens)
 
         tok_start_position = None
         tok_end_position = None
@@ -404,7 +408,7 @@ class QATask(task.Task):
                 token_is_max_context[len(tokens)] = is_max_context
                 tokens.append(all_doc_tokens[split_token_index])
                 segment_ids.append(1)
-            doc_span_tokens_to_char_index = (seq(example.doc_tokens_to_char_index.items())
+            doc_span_tokens_to_char_index = (seq(doc_tokens_to_char_index.items())
                 .filter(
                 lambda x: x[0] in range(doc_span.start, doc_span.start + doc_span.length))
             ).dict()

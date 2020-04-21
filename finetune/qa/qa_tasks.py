@@ -208,6 +208,7 @@ class QATask(task.Task):
         part_targets = [self.ner_tags.index("O")] * len(tokens_to_char_index)
 
         min_index = min([_idx for _idx in tokens_to_char_index])
+        print(tokens_to_char_index)
         bucket = collections.defaultdict(lambda: [])
         for ner in tokens_ner:
             if ner['ner_tag'] == "O":
@@ -437,7 +438,7 @@ class QATask(task.Task):
             assert len(input_ids) == self.config.max_seq_length
             assert len(input_mask) == self.config.max_seq_length
             assert len(segment_ids) == self.config.max_seq_length
-            # assert len(ner_targets) == self.config.max_seq_length
+            assert len(ner_targets) == self.config.max_seq_length
 
             start_position = None
             end_position = None

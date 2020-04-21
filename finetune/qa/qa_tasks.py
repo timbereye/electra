@@ -692,6 +692,7 @@ class SQuADTask(QATask):
         for entry in input_data:
             for paragraph in entry["paragraphs"]:
                 self._add_examples(examples, example_failures, paragraph, split)
+                print(len(examples))
         self._examples[split] = examples
         utils.log("{:} examples created, {:} failures".format(
             len(examples), example_failures[0]))

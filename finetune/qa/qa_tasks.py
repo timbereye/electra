@@ -429,7 +429,7 @@ class QATask(task.Task):
             assert len(input_ids) == self.config.max_seq_length
             assert len(input_mask) == self.config.max_seq_length
             assert len(segment_ids) == self.config.max_seq_length
-            assert len(ner_targets) == self.config.max_seq_length
+            # assert len(ner_targets) == self.config.max_seq_length
 
             start_position = None
             end_position = None
@@ -476,7 +476,7 @@ class QATask(task.Task):
                     utils.log("answer: %s" % (tokenization.printable_text(answer_text)))
                 utils.log("ner_tags: %s" % str(self.ner_tags))
                 utils.log("ner_info: %s" % str(example.doc_tokens_ner))
-                utils.log("ner_info: %s" % str(tok_to_orig_index))
+                utils.log("ner_targets: %s" % str(ner_targets))
 
             features = {
                 "task_id": self.config.task_names.index(self.name),

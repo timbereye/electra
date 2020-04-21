@@ -214,7 +214,8 @@ class QATask(task.Task):
                          .filter(lambda x: (min(x[1][1], end) - max(x[1][0], start)) > 0)
                          .map(lambda x: x[0])
                          ).list()
-            if len(bucket) == 1 and ner_tag not in bucket:
+            bucket[ner_tag].extend(token_ids)
+            if ner['ner_tag'].startswith("S-") or ner['ner_tag'].startswith("E-"):
                 ner_tag, token_ids = list(bucket.items())[0]
                 token_ids = seq(token_ids).map(lambda x: x - min_index).sorted().list()
 
@@ -227,8 +228,6 @@ class QATask(task.Task):
                         part_targets[_id] = self.ner_tags.index(f"I-{ner_tag}")
 
                 bucket = collections.defaultdict(lambda: [])
-            elif token_ids:
-                bucket[ner_tag].extend(token_ids)
 
         targets.extend(part_targets)
 

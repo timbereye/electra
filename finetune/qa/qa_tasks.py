@@ -507,7 +507,8 @@ class QATask(task.Task):
                 features.update({
                     self.name + "_start_positions": start_position,
                     self.name + "_end_positions": end_position,
-                    self.name + "_is_impossible": example.is_impossible
+                    self.name + "_is_impossible": example.is_impossible,
+                    self.name + "_ner_tragets": ner_targets
                 })
             all_features.append(features)
         return all_features

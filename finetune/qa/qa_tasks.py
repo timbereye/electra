@@ -25,6 +25,7 @@ import json
 import os
 import six
 import stanza
+from functional import seq
 import tensorflow.compat.v1 as tf
 
 import configure_finetuning
@@ -50,7 +51,8 @@ class QAExample(task.Example):
                  start_position=None,
                  end_position=None,
                  is_impossible=False,
-                 doc_tokens_ner=None):
+                 doc_tokens_ner=None,
+                 doc_tokens_to_char_index=None):
         super(QAExample, self).__init__(task_name)
         self.eid = eid
         self.qas_id = qas_id
@@ -62,6 +64,7 @@ class QAExample(task.Example):
         self.end_position = end_position
         self.is_impossible = is_impossible
         self.doc_tokens_ner = doc_tokens_ner
+        self.doc_tokens_to_char_index = doc_tokens_to_char_index
 
     def __str__(self):
         return self.__repr__()
@@ -174,7 +177,15 @@ class QATask(task.Task):
         self.nlp = stanza.Pipeline('en', processors='tokenize,ner')
         self.ner_tags = []
 
-    def _get_ner_info(self, context):
+    def _get_ner_info(self, context, tokens):
+
+        tokens_to_char_index = {}
+        offset = 0
+        for i, token in enumerate(tokens):
+            index = context[offset:].find(token)
+            tokens_to_char_index[i] = (offset + index, offset + index + len(token))
+            offset += index + len(token)
+
         doc = self.nlp(context)
         ner_info = []
         for sent in doc.sentences:
@@ -187,7 +198,39 @@ class QATask(task.Task):
                 })
                 if token.ner not in self.ner_tags:
                     self.ner_tags.append(token.ner)
-        return ner_info
+        return ner_info, tokens_to_char_index
+
+    def _add_ner_targets(self, targets, tokens_ner, tokens_to_char_index):
+        part_targets = [self.ner_tags.index("O")] * len(tokens_to_char_index)
+
+        min_index = min([_idx for _idx in tokens_to_char_index])
+        bucket = collections.defaultdict(lambda: [])
+        for ner in tokens_ner:
+            if ner['ner_tag'] == "O":
+                continue
+            start, end = ner['start'], ner['end']
+            ner_tag = ner['ner_tag'].split('-')[-1]
+            token_ids = (seq(tokens_to_char_index.items())
+                         .filter(lambda x: (min(x[1][1], end) - max(x[1][0], start)) > 0)
+                         .map(lambda x: x[0])
+                         ).list()
+            if len(bucket) == 1 and ner_tag not in bucket:
+                ner_tag, token_ids = list(bucket.items())[0]
+                token_ids = seq(token_ids).map(lambda x: x - min_index).sorted().list()
+
+                if len(token_ids) == 1:
+                    part_targets[token_ids[0]] = self.ner_tags.index(f"S-{ner_tag}")
+                elif token_ids:
+                    part_targets[token_ids[0]] = self.ner_tags.index(f"B-{ner_tag}")
+                    part_targets[token_ids[-1]] = self.ner_tags.index(f"E-{ner_tag}")
+                    for _id in token_ids[1:-1]:
+                        part_targets[_id] = self.ner_tags.index(f"I-{ner_tag}")
+
+                bucket = collections.defaultdict(lambda: [])
+            elif token_ids:
+                bucket[ner_tag].extend(token_ids)
+
+        targets.extend(part_targets)
 
     def _add_examples(self, examples, example_failures, paragraph, split):
         paragraph_text = paragraph["context"]
@@ -205,7 +248,8 @@ class QATask(task.Task):
                 prev_is_whitespace = False
             char_to_word_offset.append(len(doc_tokens) - 1)
 
-        ner_info = self._get_ner_info(paragraph_text)
+        ner_info, tokens_to_char_index = self._get_ner_info(paragraph_text, doc_tokens)
+
         for qa in paragraph["qas"]:
             qas_id = qa["id"] if "id" in qa else None
             qid = qa["qid"] if "qid" in qa else None
@@ -264,6 +308,7 @@ class QATask(task.Task):
                 qid=qid,
                 question_text=question_text,
                 doc_tokens=doc_tokens,
+                doc_tokens_to_char_index=tokens_to_char_index,
                 orig_answer_text=orig_answer_text,
                 start_position=start_position,
                 end_position=end_position,
@@ -283,6 +328,7 @@ class QATask(task.Task):
                   for_eval=False):
         all_features = []
         query_tokens = self._tokenizer.tokenize(example.question_text)
+        query_tokens_ner, query_tokens_to_char_index = self._get_ner_info(example.question_text, query_tokens)
 
         if len(query_tokens) > self.config.max_query_length:
             query_tokens = query_tokens[0:self.config.max_query_length]
@@ -312,9 +358,6 @@ class QATask(task.Task):
                 all_doc_tokens, tok_start_position, tok_end_position, self._tokenizer,
                 example.orig_answer_text)
 
-        for token_info in example.doc_tokens_ner:
-            pass
-
         # The -3 accounts for [CLS], [SEP] and [SEP]
         max_tokens_for_doc = self.config.max_seq_length - len(query_tokens) - 3
 
@@ -336,15 +379,19 @@ class QATask(task.Task):
 
         for (doc_span_index, doc_span) in enumerate(doc_spans):
             tokens = []
+            ner_targets = []
             token_to_orig_map = {}
             token_is_max_context = {}
             segment_ids = []
             tokens.append("[CLS]")
+            ner_targets.append(self.ner_tags.index("O"))
             segment_ids.append(0)
             for token in query_tokens:
                 tokens.append(token)
                 segment_ids.append(0)
+            self._add_ner_targets(ner_targets, query_tokens_ner, query_tokens_to_char_index)
             tokens.append("[SEP]")
+            ner_targets.append(self.ner_tags.index("O"))
             segment_ids.append(0)
 
             for i in range(doc_span.length):
@@ -356,7 +403,14 @@ class QATask(task.Task):
                 token_is_max_context[len(tokens)] = is_max_context
                 tokens.append(all_doc_tokens[split_token_index])
                 segment_ids.append(1)
+            doc_span_tokens_to_char_index = (seq(example.doc_tokens_to_char_index.items())
+                .filter(
+                lambda x: x[0] in range(doc_span.start, doc_span.start + doc_span.length))
+            ).dict()
+            self._add_ner_targets(ner_targets, example.doc_tokens_ner, doc_span_tokens_to_char_index)
+
             tokens.append("[SEP]")
+            ner_targets.append(self.ner_tags.index("O"))
             segment_ids.append(1)
 
             input_ids = self._tokenizer.convert_tokens_to_ids(tokens)
@@ -370,10 +424,12 @@ class QATask(task.Task):
                 input_ids.append(0)
                 input_mask.append(0)
                 segment_ids.append(0)
+                ner_targets.append(self.ner_tags.index("O"))
 
             assert len(input_ids) == self.config.max_seq_length
             assert len(input_mask) == self.config.max_seq_length
             assert len(segment_ids) == self.config.max_seq_length
+            assert len(ner_targets) == self.config.max_seq_length
 
             start_position = None
             end_position = None
@@ -421,7 +477,6 @@ class QATask(task.Task):
                 utils.log("ner_tags: %s" % str(self.ner_tags))
                 utils.log("ner_info: %s" % str(example.doc_tokens_ner))
                 utils.log("ner_info: %s" % str(tok_to_orig_index))
-
 
             features = {
                 "task_id": self.config.task_names.index(self.name),

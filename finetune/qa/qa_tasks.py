@@ -24,6 +24,7 @@ import collections
 import json
 import os
 import six
+import stanza
 import tensorflow.compat.v1 as tf
 
 import configure_finetuning
@@ -48,7 +49,8 @@ class QAExample(task.Example):
                  orig_answer_text=None,
                  start_position=None,
                  end_position=None,
-                 is_impossible=False):
+                 is_impossible=False,
+                 ner_info=None):
         super(QAExample, self).__init__(task_name)
         self.eid = eid
         self.qas_id = qas_id
@@ -59,6 +61,7 @@ class QAExample(task.Example):
         self.start_position = start_position
         self.end_position = end_position
         self.is_impossible = is_impossible
+        self.ner_info = ner_info
 
     def __str__(self):
         return self.__repr__()
@@ -167,6 +170,24 @@ class QATask(task.Task):
         self._tokenizer = tokenizer
         self._examples = {}
         self.v2 = v2
+        stanza.download('en')
+        self.nlp = stanza.Pipeline('en', processors='tokenize,ner')
+        self.ner_tags = []
+
+    def _get_ner_info(self, context):
+        doc = self.nlp(context)
+        ner_info = []
+        for sent in doc.sentences:
+            for token in sent.tokens:
+                ner_info.append({
+                    'text': token.text,
+                    'ner_tag': token.ner,
+                    'start': token.start_char,
+                    'end': token.end_char
+                })
+                if token.ner not in self.ner_tags:
+                    self.ner_tags.append(token.ner)
+        return ner_info
 
     def _add_examples(self, examples, example_failures, paragraph, split):
         paragraph_text = paragraph["context"]
@@ -184,6 +205,7 @@ class QATask(task.Task):
                 prev_is_whitespace = False
             char_to_word_offset.append(len(doc_tokens) - 1)
 
+        ner_info = self._get_ner_info(paragraph_text)
         for qa in paragraph["qas"]:
             qas_id = qa["id"] if "id" in qa else None
             qid = qa["qid"] if "qid" in qa else None
@@ -245,7 +267,8 @@ class QATask(task.Task):
                 orig_answer_text=orig_answer_text,
                 start_position=start_position,
                 end_position=end_position,
-                is_impossible=is_impossible)
+                is_impossible=is_impossible,
+                ner_info=ner_info)
             examples.append(example)
 
     def get_feature_specs(self):

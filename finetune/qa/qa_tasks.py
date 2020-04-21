@@ -188,11 +188,11 @@ class QATask(task.Task):
                     'start': token.start_char,
                     'end': token.end_char
                 })
-                # tag = token.ner.split("-")[-1]
-                # for prefix in ["B", "I", "E", "S"]:
-                if token.ner not in self.ner_tags:
-                    self.ner_tags.append(token.ner)
-        print(self.ner_tags)
+                tag = token.ner.split("-")[-1]
+                for prefix in ["B", "I", "E", "S"]:
+                    ner_tag = tag if tag == "O" else f"{prefix}-{tag}"
+                    if ner_tag not in self.ner_tags:
+                        self.ner_tags.append(ner_tag)
         return ner_info
 
     def _get_tokens_to_char_index(self, context, tokens):

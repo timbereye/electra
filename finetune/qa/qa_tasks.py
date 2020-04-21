@@ -200,7 +200,8 @@ class QATask(task.Task):
         offset = 0
         for i, token in enumerate(tokens):
             index = context[offset:].find(token)
-            assert index > 0, context
+            print(index)
+            # assert index > 0, context
             tokens_to_char_index[i] = (offset + index, offset + index + len(token))
             offset += index + len(token)
         return tokens_to_char_index

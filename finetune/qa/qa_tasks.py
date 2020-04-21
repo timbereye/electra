@@ -50,7 +50,7 @@ class QAExample(task.Example):
                  start_position=None,
                  end_position=None,
                  is_impossible=False,
-                 ner_info=None):
+                 doc_tokens_ner=None):
         super(QAExample, self).__init__(task_name)
         self.eid = eid
         self.qas_id = qas_id
@@ -61,7 +61,7 @@ class QAExample(task.Example):
         self.start_position = start_position
         self.end_position = end_position
         self.is_impossible = is_impossible
-        self.ner_info = ner_info
+        self.doc_tokens_ner = doc_tokens_ner
 
     def __str__(self):
         return self.__repr__()
@@ -268,7 +268,7 @@ class QATask(task.Task):
                 start_position=start_position,
                 end_position=end_position,
                 is_impossible=is_impossible,
-                ner_info=ner_info)
+                doc_tokens_ner=ner_info)
             examples.append(example)
 
     def get_feature_specs(self):
@@ -311,6 +311,9 @@ class QATask(task.Task):
             (tok_start_position, tok_end_position) = _improve_answer_span(
                 all_doc_tokens, tok_start_position, tok_end_position, self._tokenizer,
                 example.orig_answer_text)
+
+        for token_info in example.doc_tokens_ner:
+            pass
 
         # The -3 accounts for [CLS], [SEP] and [SEP]
         max_tokens_for_doc = self.config.max_seq_length - len(query_tokens) - 3
@@ -416,7 +419,9 @@ class QATask(task.Task):
                     utils.log("end_position: %d" % end_position)
                     utils.log("answer: %s" % (tokenization.printable_text(answer_text)))
                 utils.log("ner_tags: %s" % str(self.ner_tags))
-                utils.log("ner_info: %s" % str(example.ner_info))
+                utils.log("ner_info: %s" % str(example.doc_tokens_ner))
+                utils.log("ner_info: %s" % str(tok_to_orig_index))
+
 
             features = {
                 "task_id": self.config.task_names.index(self.name),

@@ -330,7 +330,7 @@ class QATask(task.Task):
             feature_spec.FeatureSpec(self.name + "_start_positions", []),
             feature_spec.FeatureSpec(self.name + "_end_positions", []),
             feature_spec.FeatureSpec(self.name + "_is_impossible", []),
-            feature_spec.FeatureSpec(self.name + "_ner_targets", []),
+            feature_spec.FeatureSpec(self.name + "_ner_targets", [self.config.max_seq_length]),
         ]
 
     def featurize(self, example: QAExample, is_training, log=False,
@@ -509,7 +509,7 @@ class QATask(task.Task):
                     self.name + "_start_positions": start_position,
                     self.name + "_end_positions": end_position,
                     self.name + "_is_impossible": example.is_impossible,
-                    self.name + "_ner_tragets": ner_targets
+                    self.name + "_ner_targets": ner_targets
                 })
             all_features.append(features)
         return all_features

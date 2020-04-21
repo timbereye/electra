@@ -330,6 +330,7 @@ class QATask(task.Task):
             feature_spec.FeatureSpec(self.name + "_start_positions", []),
             feature_spec.FeatureSpec(self.name + "_end_positions", []),
             feature_spec.FeatureSpec(self.name + "_is_impossible", []),
+            feature_spec.FeatureSpec(self.name + "_ner_targets", []),
         ]
 
     def featurize(self, example: QAExample, is_training, log=False,

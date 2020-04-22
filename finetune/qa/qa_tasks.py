@@ -207,6 +207,12 @@ class QATask(task.Task):
         return tokens_to_char_index
 
     def _add_ner_targets(self, targets, tokens_ner, tokens_to_char_index):
+        if "O" not in self.ner_tags:
+            self.ner_tags.append("O")
+
+        if tokens_ner is None or tokens_to_char_index is None:
+            return
+
         part_targets = [self.ner_tags.index("O")] * len(tokens_to_char_index)
 
         min_index = min([_idx for _idx in tokens_to_char_index])
@@ -337,8 +343,12 @@ class QATask(task.Task):
                   for_eval=False):
         all_features = []
         query_tokens = self._tokenizer.tokenize(example.question_text)
-        query_tokens_ner = self._get_ner_info(example.question_text)
-        query_tokens_to_char_index = self._get_tokens_to_char_index(example.question_text.lower(), query_tokens)
+        if is_training:
+            query_tokens_ner = self._get_ner_info(example.question_text)
+            query_tokens_to_char_index = self._get_tokens_to_char_index(example.question_text.lower(), query_tokens)
+        else:
+            query_tokens_ner = None
+            query_tokens_to_char_index = None
 
         if len(query_tokens) > self.config.max_query_length:
             query_tokens = query_tokens[0:self.config.max_query_length]
@@ -352,8 +362,11 @@ class QATask(task.Task):
             for sub_token in sub_tokens:
                 tok_to_orig_index.append(i)
                 all_doc_tokens.append(sub_token)
-
-        doc_tokens_to_char_index = self._get_tokens_to_char_index(example.orig_paragraph_text.lower(), all_doc_tokens)
+        if is_training:
+            doc_tokens_to_char_index = self._get_tokens_to_char_index(example.orig_paragraph_text.lower(),
+                                                                      all_doc_tokens)
+        else:
+            doc_tokens_to_char_index = None
 
         tok_start_position = None
         tok_end_position = None
@@ -441,7 +454,9 @@ class QATask(task.Task):
             assert len(input_ids) == self.config.max_seq_length
             assert len(input_mask) == self.config.max_seq_length
             assert len(segment_ids) == self.config.max_seq_length
-            assert len(ner_targets) == self.config.max_seq_length
+
+            if is_training:
+                assert len(ner_targets) == self.config.max_seq_length
 
             start_position = None
             end_position = None

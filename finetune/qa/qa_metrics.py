@@ -103,7 +103,7 @@ class SpanBasedQAScorer(scorer.Scorer):
         total_loss /= len(results)
 
         import pickle
-        pickle.dump(results, open('predict_results.pkl', 'wb'))
+        pickle.dump(results, open('f1_predict_results.pkl', 'wb'))
         utils.log(f"total_loss: {total_loss}")
 
 

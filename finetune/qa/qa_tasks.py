@@ -175,7 +175,7 @@ class QATask(task.Task):
         self.v2 = v2
         stanza.download('en')
         self.nlp = stanza.Pipeline('en', processors='tokenize,ner')
-        self.ner_tags = []
+        self.ner_tags = ["O"]
 
     def _get_ner_info(self, context):
         doc = self.nlp(context)
@@ -207,9 +207,6 @@ class QATask(task.Task):
         return tokens_to_char_index
 
     def _add_ner_targets(self, targets, tokens_ner, tokens_to_char_index):
-        if "O" not in self.ner_tags:
-            self.ner_tags.append("O")
-
         if tokens_ner is None or tokens_to_char_index is None:
             return
 

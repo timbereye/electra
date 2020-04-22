@@ -632,7 +632,7 @@ class QATask(task.Task):
         ner_logits = tf.layers.dense(final_hidden, 73)
         ner_loss = tf.losses.sparse_softmax_cross_entropy(ner_labels, ner_logits)
 
-        losses += ner_loss * 0.2
+        losses += ner_loss * 0.1
 
         return losses, dict(
             loss=losses,

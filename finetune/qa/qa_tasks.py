@@ -617,7 +617,7 @@ class QATask(task.Task):
             losses += answerable_loss * self.config.answerable_weight
 
         ner_labels = features[self.name + "_ner_targets"]
-        ner_logits = tf.layers.dense(final_hidden, len(self.ner_tags))
+        ner_logits = tf.layers.dense(final_hidden, 73)
         ner_loss = tf.losses.sparse_softmax_cross_entropy(ner_labels, ner_logits)
 
         losses += ner_loss * 0.2

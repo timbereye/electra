@@ -428,7 +428,7 @@ class QATask(task.Task):
             doc_span_tokens_to_char_index = (seq(doc_tokens_to_char_index.items())
                 .filter(
                 lambda x: x[0] in range(doc_span.start, doc_span.start + doc_span.length))
-            ).dict()
+            ).dict() if is_training else None
             self._add_ner_targets(ner_targets, example.doc_tokens_ner, doc_span_tokens_to_char_index)
 
             tokens.append("[SEP]")

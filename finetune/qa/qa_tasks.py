@@ -256,7 +256,7 @@ class QATask(task.Task):
                 prev_is_whitespace = False
             char_to_word_offset.append(len(doc_tokens) - 1)
 
-        ner_info = self._get_ner_info(paragraph_text)
+        ner_info = self._get_ner_info(paragraph_text) if split == 'train' else None
 
         for qa in paragraph["qas"]:
             qas_id = qa["id"] if "id" in qa else None

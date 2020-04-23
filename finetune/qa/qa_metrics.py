@@ -96,27 +96,21 @@ class SpanBasedQAScorer(scorer.Scorer):
         _PrelimPrediction = collections.namedtuple(  # pylint: disable=invalid-name
             "PrelimPrediction",
             ["feature_index", "start_index", "end_index", "start_logit",
-             "end_logit"])
+             "end_logit", "start_cls_logit", "end_cls_logit"])
 
         all_predictions = collections.OrderedDict()
         all_nbest_json = collections.OrderedDict()
         scores_diff_json = collections.OrderedDict()
-        all_logits = collections.OrderedDict()
 
         for example in self._eval_examples:
             example_id = example.qas_id if "squad" in self._name else example.qid
             features = self._task.featurize(example, False, for_eval=True)
 
-            all_logits[example_id] = []
             prelim_predictions = []
             # keep track of the minimum score of null start+end of position 0
             score_null = 1000000  # large and positive
             for (feature_index, feature) in enumerate(features):
                 result = unique_id_to_result[feature[self._name + "_eid"]]
-                all_logits[example_id].append({
-                    "start_logits": result.start_logits,
-                    "end_logits": result.end_logits
-                })
                 if self._config.joint_prediction:
                     start_indexes = result.start_top_index
                     end_indexes = result.end_top_index
@@ -169,7 +163,9 @@ class SpanBasedQAScorer(scorer.Scorer):
                                 start_index=start_index,
                                 end_index=end_index,
                                 start_logit=start_logit,
-                                end_logit=end_logit))
+                                end_logit=end_logit,
+                                start_cls_logit=result.start_logits[0],
+                                end_cls_logit=result.end_logits[i][0]))
 
             if self._v2:
                 if len(prelim_predictions) == 0 and self._config.debug:
@@ -179,14 +175,16 @@ class SpanBasedQAScorer(scorer.Scorer):
                         start_index=tokid,
                         end_index=tokid + 1,
                         start_logit=1.0,
-                        end_logit=1.0))
+                        end_logit=1.0,
+                        start_cls_logit=1.0,
+                        end_cls_logit=1.0))
             prelim_predictions = sorted(
                 prelim_predictions,
                 key=lambda x: (x.start_logit + x.end_logit),
                 reverse=True)
 
             _NbestPrediction = collections.namedtuple(  # pylint: disable=invalid-name
-                "NbestPrediction", ["text", "start_index", "end_index", "start_logit", "end_logit"])
+                "NbestPrediction", ["text", "start_cls_logit", "end_cls_logit", "start_logit", "end_logit"])
 
             seen_predictions = {}
             nbest = []
@@ -221,8 +219,8 @@ class SpanBasedQAScorer(scorer.Scorer):
                 nbest.append(
                     _NbestPrediction(
                         text=final_text,
-                        start_index=pred.start_index,
-                        end_index=pred.end_index,
+                        start_cls_logit=pred.start_cls_logit,
+                        end_cls_logit=pred.end_cls_logit,
                         start_logit=pred.start_logit,
                         end_logit=pred.end_logit))
 
@@ -230,7 +228,8 @@ class SpanBasedQAScorer(scorer.Scorer):
             # just create a nonce prediction in this case to avoid failure.
             if not nbest:
                 nbest.append(
-                    _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0))
+                    _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0,
+                                     start_cls_logit=1.0, end_cls_logit=1.0))
 
             assert len(nbest) >= 1
 
@@ -249,6 +248,8 @@ class SpanBasedQAScorer(scorer.Scorer):
                 output = collections.OrderedDict()
                 output["text"] = entry.text
                 output["probability"] = probs[i]
+                output["start_cls_logits"] = entry.start_cls_logit
+                output["end_cls_logits"] = entry.end_cls_logit
                 output["start_logit"] = entry.start_logit
                 output["end_logit"] = entry.end_logit
                 nbest_json.append(dict(output))
@@ -272,7 +273,6 @@ class SpanBasedQAScorer(scorer.Scorer):
         utils.write_json(dict(all_predictions),
                          self._config.qa_preds_file(self._name))
         pickle.dump(all_nbest_json, open("all_nbest.pkl", 'wb'))
-        pickle.dump(all_logits, open("all_logits.pkl", 'wb'))
 
         if self._v2:
             utils.write_json({

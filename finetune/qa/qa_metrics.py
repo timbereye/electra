@@ -157,9 +157,6 @@ class SpanBasedQAScorer(scorer.Scorer):
                         length = end_index - start_index + 1
                         if length > self._config.max_answer_length:
                             continue
-                        print(self._config.joint_prediction)
-                        print(result.start_logits)
-                        print(result.start_top_log_probs)
                         start_logit = (result.start_top_log_probs[i] if
                                        self._config.joint_prediction else
                                        result.start_logits[start_index])

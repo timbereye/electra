@@ -12,7 +12,6 @@ from data.eval import normalize_answer
 preds = json.load(open('squad_preds.json', 'r', encoding='utf-8'))
 null_odds = json.load(open('squad_null_odds.json', 'r', encoding='utf-8'))
 answer_null_odds = json.load(open('squad_null_odds_answer_model.json', 'r', encoding='utf-8'))
-
 best_th = json.load(open('squad_eval.json', 'r', encoding='utf-8'))["best_exact_thresh"]
 
 print("init eval:")
@@ -49,7 +48,7 @@ for qid in preds:
 json.dump(preds, open(final_preds_file, 'w', encoding='utf-8'))
 
 print("final eval:")
-xargs = f"python eval.py dev-v2.0.json preds_by_f1.json --na-prob-file squad_null_odds.json " \
+xargs = f"python eval.py dev-v2.0.json squad_preds.json --na-prob-file squad_null_odds.json " \
         f"--out-file {tmp_eval_file}"
 os.system(xargs)
 

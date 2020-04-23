@@ -432,6 +432,8 @@ class QATask(task.Task):
 
         start_top_log_probs = tf.zeros([batch_size, self.config.beam_size])
         start_top_index = tf.zeros([batch_size, self.config.beam_size], tf.int32)
+        end_top_logits = tf.zeros([batch_size, self.config.beam_size,
+                                      self.config.beam_size])
         end_top_log_probs = tf.zeros([batch_size, self.config.beam_size,
                                       self.config.beam_size])
         end_top_index = tf.zeros([batch_size, self.config.beam_size,
@@ -478,6 +480,7 @@ class QATask(task.Task):
                 end_logits += tf.expand_dims(1000.0 * (answer_mask - 1), 1)
 
             if not is_training:
+                end_top_logits = end_logits
                 end_log_probs = tf.nn.log_softmax(end_logits)
                 end_top_log_probs, end_top_index = tf.nn.top_k(
                     end_log_probs, k=self.config.beam_size)
@@ -522,6 +525,7 @@ class QATask(task.Task):
             loss=losses,
             start_logits=start_logits,
             end_logits=end_logits,
+            end_top_logits=end_top_logits,
             answerable_logit=answerable_logit,
             start_positions=features[self.name + "_start_positions"],
             end_positions=features[self.name + "_end_positions"],

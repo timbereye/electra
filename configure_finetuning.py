@@ -85,7 +85,7 @@ class FinetuningConfig(object):
         self.answerable_uses_start_logits = True  # more advanced answerable
         # classifier using predicted start
         self.answerable_weight = 0.5  # weight for answerability loss
-        self.joint_prediction = True  # jointly predict the start and end positions
+        self.joint_prediction = False  # jointly predict the start and end positions
         # of the answer span
         self.beam_size = 20  # beam size when doing joint predictions
         self.qa_na_threshold = -2.75  # threshold for "no answer" when writing SQuAD

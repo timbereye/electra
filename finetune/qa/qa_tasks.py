@@ -481,7 +481,7 @@ class QATask(task.Task):
                 end_log_probs = tf.nn.log_softmax(end_logits)
                 end_top_log_probs, end_top_index = tf.nn.top_k(
                     end_log_probs, k=self.config.beam_size)
-                # end_logits = tf.zeros([batch_size, seq_length])
+                end_logits = tf.zeros([batch_size, seq_length])
         else:
             end_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
             start_logits += 1000.0 * (answer_mask - 1)
@@ -522,6 +522,7 @@ class QATask(task.Task):
             loss=losses,
             start_logits=start_logits,
             end_logits=end_logits,
+            end_log_probs=end_log_probs,
             answerable_logit=answerable_logit,
             start_positions=features[self.name + "_start_positions"],
             end_positions=features[self.name + "_end_positions"],

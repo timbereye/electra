@@ -115,7 +115,7 @@ class SpanBasedQAScorer(scorer.Scorer):
                 result = unique_id_to_result[feature[self._name + "_eid"]]
                 all_logits[example_id].append({
                     "start_logits": result.start_logits,
-                    "end_logits": result.end_logits
+                    "end_log_probs": result.end_log_probs
                 })
                 if self._config.joint_prediction:
                     start_indexes = result.start_top_index

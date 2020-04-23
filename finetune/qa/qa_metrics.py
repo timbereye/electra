@@ -33,7 +33,7 @@ from model import tokenization
 from util import utils
 
 RawResult = collections.namedtuple("RawResult", [
-    "unique_id", "start_logits", "end_logits", "end_top_logits", "answerable_logit",
+    "unique_id", "start_logits", "end_logits", "end_top_probs", "answerable_logit",
     "start_top_log_probs", "start_top_index", "end_top_log_probs",
     "end_top_index"
 ])
@@ -62,7 +62,7 @@ class SpanBasedQAScorer(scorer.Scorer):
                 unique_id=results["eid"],
                 start_logits=results["start_logits"],
                 end_logits=results["end_logits"],
-                end_top_logits=results["end_top_logits"],
+                end_top_probs=results["end_top_probs"],
                 answerable_logit=results["answerable_logit"],
                 start_top_log_probs=results["start_top_log_probs"],
                 start_top_index=results["start_top_index"],
@@ -165,8 +165,8 @@ class SpanBasedQAScorer(scorer.Scorer):
                                 end_index=end_index,
                                 start_logit=start_logit,
                                 end_logit=end_logit,
-                                start_cls_logit=result.start_logits[0],
-                                end_cls_logit=result.end_top_logits[i][0]))
+                                start_cls_logit=_compute_softmax(result.start_logits)[0],
+                                end_cls_logit=result.end_top_probs[i][0]))
 
             if self._v2:
                 if len(prelim_predictions) == 0 and self._config.debug:

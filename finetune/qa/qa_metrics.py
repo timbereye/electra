@@ -33,7 +33,7 @@ from model import tokenization
 from util import utils
 
 RawResult = collections.namedtuple("RawResult", [
-    "unique_id", "start_logits", "end_logits", "end_top_probs", "answerable_logit",
+    "unique_id", "start_logits", "start_probs", "end_logits", "end_top_probs", "answerable_logit",
     "start_top_log_probs", "start_top_index", "end_top_log_probs",
     "end_top_index"
 ])

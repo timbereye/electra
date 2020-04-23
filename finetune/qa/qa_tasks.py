@@ -522,7 +522,6 @@ class QATask(task.Task):
             loss=losses,
             start_logits=start_logits,
             end_logits=end_logits,
-            end_log_probs=end_log_probs,
             answerable_logit=answerable_logit,
             start_positions=features[self.name + "_start_positions"],
             end_positions=features[self.name + "_end_positions"],

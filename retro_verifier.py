@@ -20,6 +20,28 @@ retro_prediction_file = './data/retro_preds.json'
 score_has = collections.OrderedDict()
 score_na = collections.OrderedDict()
 
+
+def get_na_prob(qid):
+    logits = all_logits[qid]
+    start_na_prob = []
+    for logit in logits:
+        start_na_prob.append(np.exp(logit['start_logits']))
+
+    start_na_prob = np.mean(start_na_prob)
+
+    odd_prob = 0.5 * 1 / (1 + np.exp(-null_odds[qid])) + 0.5 * 1 / (1 + np.exp(-answer_null_odds[qid]))
+
+    return start_na_prob + odd_prob
+
+
 for qid in preds:
-    score_has[qid] = all_nbest[qid][0]['start_logit']
-print(1)
+    score_has[qid] = np.exp(all_nbest[qid][0]['start_logit']) + np.exp(all_nbest[qid][0]['end_logit'])
+    score_na[qid] = get_na_prob(qid)
+
+for qid in preds:
+    if score_na[qid] - score_has[qid] > 0.7:
+        preds[qid] = ""
+
+json.dump(preds, open(retro_prediction_file, 'w', encoding='utf-8'))
+xargs = f"python ./data/eval.py ./data/dev-v2.0.json {retro_prediction_file}"
+os.system(xargs)

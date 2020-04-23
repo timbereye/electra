@@ -249,8 +249,6 @@ class SpanBasedQAScorer(scorer.Scorer):
                 output = collections.OrderedDict()
                 output["text"] = entry.text
                 output["probability"] = probs[i]
-                output["start_index"] = entry.start_index
-                output["end_index"] = entry.end_index
                 output["start_logit"] = entry.start_logit
                 output["end_logit"] = entry.end_logit
                 nbest_json.append(dict(output))

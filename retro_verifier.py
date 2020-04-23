@@ -20,5 +20,6 @@ retro_prediction_file = './data/retro_preds.json'
 score_has = collections.OrderedDict()
 score_na = collections.OrderedDict()
 
-
+for qid in preds:
+    score_has[qid] = all_nbest[qid][0]['start_logit']
 print(1)

@@ -157,6 +157,9 @@ class SpanBasedQAScorer(scorer.Scorer):
                         length = end_index - start_index + 1
                         if length > self._config.max_answer_length:
                             continue
+                        print(self._config.joint_prediction)
+                        print(result.start_logits)
+                        print(result.start_top_log_probs)
                         start_logit = (result.start_top_log_probs[i] if
                                        self._config.joint_prediction else
                                        result.start_logits[start_index])
@@ -186,7 +189,7 @@ class SpanBasedQAScorer(scorer.Scorer):
                 reverse=True)
 
             _NbestPrediction = collections.namedtuple(  # pylint: disable=invalid-name
-                "NbestPrediction", ["text", "start_logit", "end_logit"])
+                "NbestPrediction", ["text", "start_index", "end_index", "start_logit", "end_logit"])
 
             seen_predictions = {}
             nbest = []
@@ -221,6 +224,8 @@ class SpanBasedQAScorer(scorer.Scorer):
                 nbest.append(
                     _NbestPrediction(
                         text=final_text,
+                        start_index=pred.start_index,
+                        end_index=pred.end_index,
                         start_logit=pred.start_logit,
                         end_logit=pred.end_logit))
 
@@ -247,6 +252,8 @@ class SpanBasedQAScorer(scorer.Scorer):
                 output = collections.OrderedDict()
                 output["text"] = entry.text
                 output["probability"] = probs[i]
+                output["start_index"] = entry.start_index
+                output["end_index"] = entry.end_index
                 output["start_logit"] = entry.start_logit
                 output["end_logit"] = entry.end_logit
                 nbest_json.append(dict(output))

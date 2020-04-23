@@ -101,16 +101,22 @@ class SpanBasedQAScorer(scorer.Scorer):
         all_predictions = collections.OrderedDict()
         all_nbest_json = collections.OrderedDict()
         scores_diff_json = collections.OrderedDict()
+        all_logits = collections.OrderedDict()
 
         for example in self._eval_examples:
             example_id = example.qas_id if "squad" in self._name else example.qid
             features = self._task.featurize(example, False, for_eval=True)
 
+            all_logits[example_id] = []
             prelim_predictions = []
             # keep track of the minimum score of null start+end of position 0
             score_null = 1000000  # large and positive
             for (feature_index, feature) in enumerate(features):
                 result = unique_id_to_result[feature[self._name + "_eid"]]
+                all_logits[example_id].append({
+                    "start_logits": result.start_logits,
+                    "end_logits": result.end_logits
+                })
                 if self._config.joint_prediction:
                     start_indexes = result.start_top_index
                     end_indexes = result.end_top_index
@@ -264,6 +270,7 @@ class SpanBasedQAScorer(scorer.Scorer):
         utils.write_json(dict(all_predictions),
                          self._config.qa_preds_file(self._name))
         pickle.dump(all_nbest_json, open("all_nbest.pkl", 'wb'))
+        pickle.dump(all_logits, open("all_logits.pkl", 'wb'))
 
         if self._v2:
             utils.write_json({

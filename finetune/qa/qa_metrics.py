@@ -62,6 +62,7 @@ class SpanBasedQAScorer(scorer.Scorer):
                 unique_id=results["eid"],
                 start_logits=results["start_logits"],
                 end_logits=results["end_logits"],
+                end_log_probs=results["end_log_probs"],
                 answerable_logit=results["answerable_logit"],
                 start_top_log_probs=results["start_top_log_probs"],
                 start_top_index=results["start_top_index"],

@@ -112,6 +112,7 @@ class SpanBasedQAScorer(scorer.Scorer):
             score_null = 1000000  # large and positive
             for (feature_index, feature) in enumerate(features):
                 result = unique_id_to_result[feature[self._name + "_eid"]]
+                start_probs = _compute_softmax(result.start_logits.tolist())
                 if self._config.joint_prediction:
                     start_indexes = result.start_top_index
                     end_indexes = result.end_top_index
@@ -165,7 +166,7 @@ class SpanBasedQAScorer(scorer.Scorer):
                                 end_index=end_index,
                                 start_logit=start_logit,
                                 end_logit=end_logit,
-                                start_cls_logit=_compute_softmax(result.start_logits.tolist())[0],
+                                start_cls_logit=start_probs[0],
                                 end_cls_logit=result.end_top_probs[i][0]))
 
             if self._v2:

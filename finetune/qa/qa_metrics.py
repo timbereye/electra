@@ -165,7 +165,7 @@ class SpanBasedQAScorer(scorer.Scorer):
                                 end_index=end_index,
                                 start_logit=start_logit,
                                 end_logit=end_logit,
-                                start_cls_logit=_compute_softmax(result.start_logits)[0],
+                                start_cls_logit=_compute_softmax(result.start_logits.tolist())[0],
                                 end_cls_logit=result.end_top_probs[i][0]))
 
             if self._v2:

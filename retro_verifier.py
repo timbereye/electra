@@ -41,6 +41,5 @@ for th in np.arange(-1, 0.5, 0.1):
 
     print(th)
     json.dump(preds, open(retro_prediction_file, 'w', encoding='utf-8'))
-    xargs = f"python ./data/eval.py ./data/dev-v2.0.json {retro_prediction_file} " \
-            f"--na-prob-file ./data/new_squad_null_odds.json "
+    xargs = f"python ./data/eval.py ./data/dev-v2.0.json {retro_prediction_file} "
     os.system(xargs)

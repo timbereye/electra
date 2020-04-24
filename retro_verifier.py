@@ -33,13 +33,14 @@ def get_probs(qid):
 
 
 for th in np.arange(-1, 3, 0.1):
-    for qid in preds:
+    copy_preds = deepcopy(preds)
+    for qid in copy_preds:
         scores = get_probs(qid)
         score_diff[qid] = scores[0] - (0.5 * scores[1] + 0.5 * (0.5 * scores[2] + 0.5 * scores[3]))
         if score_diff[qid] < th:
-            preds[qid] = ""
+            copy_preds[qid] = ""
 
     print(th)
-    json.dump(preds, open(retro_prediction_file, 'w', encoding='utf-8'))
+    json.dump(copy_preds, open(retro_prediction_file, 'w', encoding='utf-8'))
     xargs = f"python ./data/eval.py ./data/dev-v2.0.json {retro_prediction_file} "
     os.system(xargs)

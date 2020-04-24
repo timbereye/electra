@@ -18,14 +18,14 @@ answer_null_odds = json.load(open('./data/squad_null_odds_answer_model.json', 'r
 dev = json.load(open('./data/dev-v2.0.json', 'r', encoding='utf-8'))['data']
 
 retro_prediction_file = './data/retro_preds.json'
-score_diff = collections.OrderedDict()
 
 for th in np.arange(-5, 5, 0.1):
-    for qid in preds:
-        if null_odds[qid] < th:
-            preds[qid] = ""
+    copy_preds = deepcopy(preds)
+    for qid in copy_preds:
+        if null_odds[qid] > th:
+            copy_preds[qid] = ""
 
     print(th)
-    json.dump(preds, open(retro_prediction_file, 'w', encoding='utf-8'))
+    json.dump(copy_preds, open(retro_prediction_file, 'w', encoding='utf-8'))
     xargs = f"python ./data/eval.py ./data/dev-v2.0.json {retro_prediction_file} "
     os.system(xargs)

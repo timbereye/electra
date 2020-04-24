@@ -49,7 +49,7 @@ def eval_twice():
             prediction[k] = ""
     json.dump(prediction, open(tmp_file, 'w', encoding='utf-8'))
     xargs = f"python ./data/eval.py ./data/dev-v2.0.json {tmp_file} " \
-            f"--na-prob-file ./data/squad_null_odds_answer_model.json --out-file {tmp_eval_file}"
+            f"--na-prob-file {answer_null_odds_file} --out-file {tmp_eval_file}"
     os.system(xargs)
     new_sh = json.load(open(tmp_eval_file, 'r', encoding='utf-8'))["best_exact_thresh"]
     for k, v in answer_null_odds.items():
@@ -61,12 +61,4 @@ def eval_twice():
     os.system(xargs)
 
 
-# xargs = "python ./data/eval.py ./data/dev-v2.0.json ./data/squad_preds.json --na-prob-file ./data/squad_null_odds.json --na-prob-thresh -2.75"
-# os.system(xargs)
-#
-# start = time.time()
-# simple_replace_with_null_odds()
-# xargs = "python ./data/eval.py ./data/dev-v2.0.json ./data/merge_preds.json"
-# os.system(xargs)
-# print(f"cost time: {time.time() - start}")
 eval_twice()

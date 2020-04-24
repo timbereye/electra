@@ -14,6 +14,6 @@ for article in train['data']:
             qid = qa['id']
             is_impossible = qa['is_impossible']
             if is_impossible and train_null_odds[qid] < th:
-                qa['is_difficult_impossible'] = True
+                qa['is_impossible'] = 2
 
 json.dump(train, open('train.json', 'w', encoding='utf-8'))

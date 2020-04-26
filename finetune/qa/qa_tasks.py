@@ -424,9 +424,9 @@ class QATask(task.Task):
         batch_size, seq_length, hidden_size = final_hidden_shape
 
         from tcn import TCN
-        partial_attention = TCN(nb_filters=hidden_size, kernel_size=5, nb_stacks=2,
-                                dilations=[1, 2, 4, 8], padding='same', use_skip_connections=True,
-                                dropout_rate=0.1, return_sequences=True, activation='relu',
+        partial_attention = TCN(nb_filters=hidden_size, kernel_size=5, nb_stacks=1,
+                                dilations=[1, 2, 4, 8, 16], padding='same', use_skip_connections=True,
+                                dropout_rate=0., return_sequences=True, activation='relu',
                                 kernel_initializer="he_normal", use_batch_norm=True, use_layer_norm=True)(final_hidden)
         final_hidden += partial_attention
 

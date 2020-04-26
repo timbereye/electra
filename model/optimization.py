@@ -60,8 +60,8 @@ def create_optimizer(
     tvars = tf.trainable_variables()
     grads = tf.gradients(loss, tvars)
     (grads, _) = tf.clip_by_global_norm(grads, clip_norm=1.0)
-    # grads = [g * 100 if v.name.startswith("slqa") or v.name.startswith("co-attention") else g for v, g in
-    #          zip(tvars, grads)]
+    grads = [g * 100 if "/tcn/" in v.name else g for v, g in
+             zip(tvars, grads)]
     print(tvars)
     train_op = optimizer.apply_gradients(
         zip(grads, tvars), global_step=global_step)

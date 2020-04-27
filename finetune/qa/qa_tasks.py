@@ -463,7 +463,7 @@ class QATask(task.Task):
             encoding_dim = 256
             question_mask = tf.cast(
                 tf.logical_and(tf.cast(features["input_mask"], tf.bool),
-                               tf.logical_not(tf.cast(features["input_mask"], tf.bool))), tf.float32)
+                               tf.logical_not(tf.cast(features["segment_ids"], tf.bool))), tf.float32)
             passage_mask = tf.cast(features["segment_ids"], tf.float32)
 
             encoded_question = final_hidden * tf.expand_dims(question_mask, 2)

@@ -438,77 +438,66 @@ class QATask(task.Task):
                                              kernel_initializer=modeling.create_initializer())
                 return gated * fusion + (1 - gated) * x
 
-            def biLSTM_layer(lstm_inputs, lstm_dim, lengths=None, name=None,
-                             initializer=modeling.create_initializer()):
-                from finetune.qa.layers import CoupledInputForgetGateLSTMCell
-                with tf.variable_scope("char_BiLSTM" if not name else name, reuse=tf.AUTO_REUSE):
-                    lstm_cell = {}
-                    for direction in ["forward", "backward"]:
-                        with tf.variable_scope(direction):
-                            lstm_cell[direction] = CoupledInputForgetGateLSTMCell(
-                                lstm_dim,
-                                use_peepholes=True,
-                                initializer=initializer,
-                                state_is_tuple=True
-                            )
-                    outputs, final_states = tf.nn.bidirectional_dynamic_rnn(
-                        lstm_cell["forward"],
-                        lstm_cell["backward"],
-                        lstm_inputs,
-                        dtype=tf.float32,
-                        sequence_length=lengths
-                    )
-                return tf.concat(outputs, axis=2), final_states
+            # from modeling import dot_product_attention, attention_ffn_block
+            #
+            # encoding_dim = 256
+            # question_mask = tf.cast(
+            #     tf.logical_and(tf.cast(input_mask, tf.bool), tf.logical_not(tf.cast(segment_ids, tf.bool))), tf.float32)
+            # passage_mask = tf.cast(segment_ids, tf.float32)
+            #
+            # encoded_question = output * tf.expand_dims(question_mask, 2)
+            # encoded_passage = output * tf.expand_dims(passage_mask, 2)
+            #
+            # q_aware_passage = dot_product_attention(encoded_question, encoded_passage, encoded_passage, bias=None)
+            # p_aware_question = dot_product_attention(encoded_passage, encoded_question, encoded_question, bias=None)
+            #
+            # output = dot_product_attention(p_aware_question, q_aware_passage, q_aware_passage, bias=None)
 
-            encoding_dim = 256
-            question_mask = tf.cast(
-                tf.logical_and(tf.cast(features["input_mask"], tf.bool),
-                               tf.logical_not(tf.cast(features["segment_ids"], tf.bool))), tf.float32)
-            passage_mask = tf.cast(features["segment_ids"], tf.float32)
+            # from tcn.tcnbk import TemporalConvNet
+            #
+            # output = TemporalConvNet(output, [768] * 7, kernel_size=2, dropout=albert_config.hidden_dropout_prob,
+            #                          use_highway=False)
+            from tcn.tcn import TCN
+            from tensorflow.keras.layers import Conv1D, SeparableConv1D, Activation, BatchNormalization, \
+                LayerNormalization
+            downsample_rate = 2048 / 4096
+            bottleneck_rate = 512 / 1024
 
-            encoded_question = final_hidden * tf.expand_dims(question_mask, 2)
-            encoded_passage = final_hidden * tf.expand_dims(passage_mask, 2)
+            partial_attention_model = tf.keras.Sequential([
+                # Conv1D(filters=int(albert_config.hidden_size * downsample_rate),
+                #        kernel_size=1,
+                #        strides=1,
+                #        padding="same",
+                #        name=f"downsample_layer_1",
+                #        kernel_initializer=modeling.create_initializer()),
+                # BatchNormalization(),
+                # Activation("relu"),
+                # Conv1D(filters=int(albert_config.hidden_size * 0.25),
+                #        kernel_size=1,
+                #        strides=1,
+                #        padding="same",
+                #        name=f"downsample_layer_2",
+                #        kernel_initializer=modeling.create_initializer()),
+                # BatchNormalization(),
+                # Activation("relu"),
+                TCN(nb_filters=int(hidden_size * 1.), bottleneck_rate=0.5,
+                    kernel_size=3, nb_stacks=1, dilations=[1, 2, 4, 8, 16, 32, 64], padding='same',
+                    use_skip_connections=True,
+                    dropout_rate=0.1, return_sequences=True, activation='linear',
+                    kernel_initializer="he_normal", use_batch_norm=True, use_layer_norm=False),
+                # Conv1D(filters=albert_config.hidden_size,
+                #        kernel_size=1,
+                #        strides=1,
+                #        padding="same",
+                #        name=f"upsample_layer",
+                #        kernel_initializer=modeling.create_initializer()),
+                # BatchNormalization(),
+                # Activation("relu"),
+            ])
 
-            s = tf.einsum(" blh, bLh -> blL ", encoded_question, encoded_passage)
-            alpha = tf.einsum(" blL, bl -> blL ", tf.nn.softmax(s, axis=1), question_mask)
-
-            q_aware_p = tf.einsum(" bLl, blh -> bLh ", alpha, encoded_question)
-
-            beta = tf.einsum(" blL, bL -> blL ", tf.nn.softmax(s, axis=2), passage_mask)
-
-            p_aware_q = tf.einsum(" bLl, bLh -> blh ", beta, encoded_passage)
-
-            fused_passage = fusion_layer(encoded_passage, q_aware_p)
-
-            fused_question = fusion_layer(encoded_question, p_aware_q)
-
-            self_w = tf.get_variable(name="self_w",
-                                     shape=[hidden_size, hidden_size],
-                                     initializer=modeling.create_initializer(),
-                                     trainable=True)
-            self_b = tf.get_variable(name="self_b",
-                                     shape=[seq_length],
-                                     initializer=modeling.create_initializer(),
-                                     trainable=True)
-            self_att_p = tf.einsum(" blh, hH, bLH -> blL ", encoded_passage, self_w, encoded_passage) + self_b
-            intermediate_self_aware_p = tf.einsum(" blL, bL -> blL ", tf.nn.softmax(self_att_p, axis=2), passage_mask)
-            self_aware_passage = tf.einsum(" bLl, blh -> bLh ", intermediate_self_aware_p, fused_passage)
-
-            intermediate_p = fusion_layer(fused_passage, self_aware_passage)
-            contextual_p = tf.einsum(" bLe, bL -> bLe ",
-                                     biLSTM_layer(intermediate_p, encoding_dim, name="contextual_layer_p")[0],
-                                     passage_mask)
-            intermediate_q = tf.einsum(" ble, bl -> ble ",
-                                       biLSTM_layer(fused_question, encoding_dim, name="contextual_layer_q")[0],
-                                       question_mask)
-            gamma = tf.squeeze(tf.nn.softmax(tf.layers.dense(intermediate_q, 1, use_bias=False), axis=1),
-                               2) * question_mask
-            contextual_q = tf.einsum(" bl, ble -> be ", gamma, intermediate_q)
-            project_w = tf.get_variable(name="project_w",
-                                        shape=[encoding_dim * 2],
-                                        initializer=modeling.create_initializer(),
-                                        trainable=True)
-            final_hidden = tf.einsum(" bLe,e,be -> bLe", contextual_p, project_w, contextual_q, name="slqa_output")
+            x = partial_attention_model(final_hidden)
+            final_hidden += x
+            # output = fusion_layer(output, x)
 
         print(tf.trainable_variables())
         answer_mask = tf.cast(features["input_mask"], tf.float32)

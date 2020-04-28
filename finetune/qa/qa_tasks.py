@@ -423,87 +423,13 @@ class QATask(task.Task):
         final_hidden_shape = modeling.get_shape_list(final_hidden, expected_rank=3)
         batch_size, seq_length, hidden_size = final_hidden_shape
 
-        with tf.variable_scope("slqa", reuse=tf.AUTO_REUSE):
+        from tcn import TCN
+        partial_attention = TCN(nb_filters=hidden_size, kernel_size=3, nb_stacks=1,
+                                dilations=[1, 2, 4, 8, ], padding='same', use_skip_connections=True,
+                                dropout_rate=0., return_sequences=True, activation='relu',
+                                kernel_initializer="he_normal", use_batch_norm=True, use_layer_norm=True)(final_hidden)
+        final_hidden += partial_attention
 
-            def fusion_layer(x, y):
-                with tf.variable_scope("fusion", reuse=tf.AUTO_REUSE):
-                    z = tf.concat([x, y, x * y, x - y], axis=2)
-                    gated = tf.layers.dense(z, 1,
-                                            activation=tf.nn.sigmoid,
-                                            use_bias=True,
-                                            kernel_initializer=modeling.create_initializer())
-                    fusion = tf.layers.dense(z, hidden_size,
-                                             activation=tf.nn.tanh,
-                                             use_bias=True,
-                                             kernel_initializer=modeling.create_initializer())
-                return gated * fusion + (1 - gated) * x
-
-            # from modeling import dot_product_attention, attention_ffn_block
-            #
-            # encoding_dim = 256
-            # question_mask = tf.cast(
-            #     tf.logical_and(tf.cast(input_mask, tf.bool), tf.logical_not(tf.cast(segment_ids, tf.bool))), tf.float32)
-            # passage_mask = tf.cast(segment_ids, tf.float32)
-            #
-            # encoded_question = output * tf.expand_dims(question_mask, 2)
-            # encoded_passage = output * tf.expand_dims(passage_mask, 2)
-            #
-            # q_aware_passage = dot_product_attention(encoded_question, encoded_passage, encoded_passage, bias=None)
-            # p_aware_question = dot_product_attention(encoded_passage, encoded_question, encoded_question, bias=None)
-            #
-            # output = dot_product_attention(p_aware_question, q_aware_passage, q_aware_passage, bias=None)
-
-            # from tcn.tcnbk import TemporalConvNet
-            #
-            # output = TemporalConvNet(output, [768] * 7, kernel_size=2, dropout=albert_config.hidden_dropout_prob,
-            #                          use_highway=False)
-            from tcn.tcn import TCN
-            from tensorflow.keras.layers import Conv1D, SeparableConv1D, Activation, BatchNormalization, \
-                LayerNormalization
-            downsample_rate = 2048 / 4096
-            bottleneck_rate = 512 / 1024
-
-            # partial_attention_model = tf.keras.Sequential([
-            #     # Conv1D(filters=int(albert_config.hidden_size * downsample_rate),
-            #     #        kernel_size=1,
-            #     #        strides=1,
-            #     #        padding="same",
-            #     #        name=f"downsample_layer_1",
-            #     #        kernel_initializer=modeling.create_initializer()),
-            #     # BatchNormalization(),
-            #     # Activation("relu"),
-            #     # Conv1D(filters=int(albert_config.hidden_size * 0.25),
-            #     #        kernel_size=1,
-            #     #        strides=1,
-            #     #        padding="same",
-            #     #        name=f"downsample_layer_2",
-            #     #        kernel_initializer=modeling.create_initializer()),
-            #     # BatchNormalization(),
-            #     # Activation("relu"),
-            #     TCN(nb_filters=int(hidden_size * 1.), bottleneck_rate=0.5,
-            #         kernel_size=3, nb_stacks=1, dilations=[1, 2, 4, 8, 16, ], padding='same',
-            #         use_skip_connections=True,
-            #         dropout_rate=0.1, return_sequences=True, activation='linear',
-            #         kernel_initializer="he_normal", use_batch_norm=True, use_layer_norm=False),
-            #     # Conv1D(filters=albert_config.hidden_size,
-            #     #        kernel_size=1,
-            #     #        strides=1,
-            #     #        padding="same",
-            #     #        name=f"upsample_layer",
-            #     #        kernel_initializer=modeling.create_initializer()),
-            #     # BatchNormalization(),
-            #     # Activation("relu"),
-            # ])
-
-            x = TCN(nb_filters=int(hidden_size * 1.), bottleneck_rate=0.5,
-                    kernel_size=3, nb_stacks=1, dilations=[1, 2, 4, 8, ], padding='same',
-                    use_skip_connections=True,
-                    dropout_rate=0.1, return_sequences=True, activation='linear',
-                    kernel_initializer="he_normal", use_batch_norm=True, use_layer_norm=False)(final_hidden)
-            final_hidden += x
-            # output = fusion_layer(output, x)
-
-        print(tf.trainable_variables())
         answer_mask = tf.cast(features["input_mask"], tf.float32)
         answer_mask *= tf.cast(features["segment_ids"], tf.float32)
         answer_mask += tf.one_hot(0, seq_length)

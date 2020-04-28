@@ -463,39 +463,43 @@ class QATask(task.Task):
             downsample_rate = 2048 / 4096
             bottleneck_rate = 512 / 1024
 
-            partial_attention_model = tf.keras.Sequential([
-                # Conv1D(filters=int(albert_config.hidden_size * downsample_rate),
-                #        kernel_size=1,
-                #        strides=1,
-                #        padding="same",
-                #        name=f"downsample_layer_1",
-                #        kernel_initializer=modeling.create_initializer()),
-                # BatchNormalization(),
-                # Activation("relu"),
-                # Conv1D(filters=int(albert_config.hidden_size * 0.25),
-                #        kernel_size=1,
-                #        strides=1,
-                #        padding="same",
-                #        name=f"downsample_layer_2",
-                #        kernel_initializer=modeling.create_initializer()),
-                # BatchNormalization(),
-                # Activation("relu"),
-                TCN(nb_filters=int(hidden_size * 1.), bottleneck_rate=0.5,
-                    kernel_size=3, nb_stacks=1, dilations=[1, 2, 4, 8, 16, ], padding='same',
+            # partial_attention_model = tf.keras.Sequential([
+            #     # Conv1D(filters=int(albert_config.hidden_size * downsample_rate),
+            #     #        kernel_size=1,
+            #     #        strides=1,
+            #     #        padding="same",
+            #     #        name=f"downsample_layer_1",
+            #     #        kernel_initializer=modeling.create_initializer()),
+            #     # BatchNormalization(),
+            #     # Activation("relu"),
+            #     # Conv1D(filters=int(albert_config.hidden_size * 0.25),
+            #     #        kernel_size=1,
+            #     #        strides=1,
+            #     #        padding="same",
+            #     #        name=f"downsample_layer_2",
+            #     #        kernel_initializer=modeling.create_initializer()),
+            #     # BatchNormalization(),
+            #     # Activation("relu"),
+            #     TCN(nb_filters=int(hidden_size * 1.), bottleneck_rate=0.5,
+            #         kernel_size=3, nb_stacks=1, dilations=[1, 2, 4, 8, 16, ], padding='same',
+            #         use_skip_connections=True,
+            #         dropout_rate=0.1, return_sequences=True, activation='linear',
+            #         kernel_initializer="he_normal", use_batch_norm=True, use_layer_norm=False),
+            #     # Conv1D(filters=albert_config.hidden_size,
+            #     #        kernel_size=1,
+            #     #        strides=1,
+            #     #        padding="same",
+            #     #        name=f"upsample_layer",
+            #     #        kernel_initializer=modeling.create_initializer()),
+            #     # BatchNormalization(),
+            #     # Activation("relu"),
+            # ])
+
+            x = TCN(nb_filters=int(hidden_size * 1.), bottleneck_rate=0.5,
+                    kernel_size=3, nb_stacks=1, dilations=[1, 2, 4, 8, ], padding='same',
                     use_skip_connections=True,
                     dropout_rate=0.1, return_sequences=True, activation='linear',
-                    kernel_initializer="he_normal", use_batch_norm=True, use_layer_norm=False),
-                # Conv1D(filters=albert_config.hidden_size,
-                #        kernel_size=1,
-                #        strides=1,
-                #        padding="same",
-                #        name=f"upsample_layer",
-                #        kernel_initializer=modeling.create_initializer()),
-                # BatchNormalization(),
-                # Activation("relu"),
-            ])
-
-            x = partial_attention_model(final_hidden)
+                    kernel_initializer="he_normal", use_batch_norm=True, use_layer_norm=False)(final_hidden)
             final_hidden += x
             # output = fusion_layer(output, x)
 

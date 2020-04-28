@@ -481,7 +481,7 @@ class QATask(task.Task):
                 # BatchNormalization(),
                 # Activation("relu"),
                 TCN(nb_filters=int(hidden_size * 1.), bottleneck_rate=0.5,
-                    kernel_size=3, nb_stacks=1, dilations=[1, 2, 4, 8, 16, 32, 64], padding='same',
+                    kernel_size=3, nb_stacks=1, dilations=[1, 2, 4, 8, 16, ], padding='same',
                     use_skip_connections=True,
                     dropout_rate=0.1, return_sequences=True, activation='linear',
                     kernel_initializer="he_normal", use_batch_norm=True, use_layer_norm=False),

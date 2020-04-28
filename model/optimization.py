@@ -59,7 +59,7 @@ def create_optimizer(
 
     tvars = tf.trainable_variables()
     grads = tf.gradients(loss, tvars)
-    grads = [g * 100 if "/slqa/" in v.name else g for v, g in zip(tvars, grads)]
+    grads = [g * 100 if "/tcn/" in v.name else g for v, g in zip(tvars, grads)]
 
     (grads, _) = tf.clip_by_global_norm(grads, clip_norm=1.0)
 

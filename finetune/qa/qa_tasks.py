@@ -423,12 +423,12 @@ class QATask(task.Task):
         final_hidden_shape = modeling.get_shape_list(final_hidden, expected_rank=3)
         batch_size, seq_length, hidden_size = final_hidden_shape
 
-        from tcn import TCN
-        partial_attention = TCN(nb_filters=hidden_size, kernel_size=3, nb_stacks=1,
-                                dilations=[1, 2, 4, 8, ], padding='same', use_skip_connections=True,
-                                dropout_rate=0., return_sequences=True, activation='relu',
-                                kernel_initializer="he_normal", use_batch_norm=True, use_layer_norm=True)(final_hidden)
-        final_hidden += partial_attention
+        # from tcn import TCN
+        # partial_attention = TCN(nb_filters=hidden_size, kernel_size=3, nb_stacks=1,
+        #                         dilations=[1, 2, 4, 8, ], padding='same', use_skip_connections=True,
+        #                         dropout_rate=0., return_sequences=True, activation='relu',
+        #                         kernel_initializer="he_normal", use_batch_norm=True, use_layer_norm=True)(final_hidden)
+        # final_hidden += partial_attention
 
         answer_mask = tf.cast(features["input_mask"], tf.float32)
         answer_mask *= tf.cast(features["segment_ids"], tf.float32)

@@ -71,6 +71,7 @@ class FinetuningModel(object):
                     task_losses, task_outputs = task.get_prediction_module(
                         bert_model, features, is_training, percent_done)
 
+                print(bert_model.token_embeddings.shape)
                 grad = tf.stop_gradient(tf.gradients(task_losses, bert_model.token_embeddings))
                 print(grad.shape)
                 perturb = self._scale_l2(grad, 1)

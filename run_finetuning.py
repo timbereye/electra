@@ -67,8 +67,9 @@ class FinetuningModel(object):
                     use_one_hot_embeddings=config.use_tpu,
                     embedding_size=config.embedding_size)
 
-                task_losses, task_outputs = task.get_prediction_module(
-                    bert_model, features, is_training, percent_done)
+                with tf.variable_scope("downstream", reuse=tf.AUTO_REUSE):
+                    task_losses, task_outputs = task.get_prediction_module(
+                        bert_model, features, is_training, percent_done)
 
                 grad = tf.gradients(task_losses, bert_model.token_embeddings)
                 perturb = self._scale_l2(grad, 0.125)
@@ -85,11 +86,12 @@ class FinetuningModel(object):
                     embedding_size=config.embedding_size,
                     input_embeddings=adv_token_embeddings)
 
-                task_adv_losses, task_adv_outputs = task.get_prediction_module(
-                    bert_model_adv, features, is_training, percent_done)
+                with tf.variable_scope("downstream", reuse=tf.AUTO_REUSE):
+                    task_adv_losses, task_adv_outputs = task.get_prediction_module(
+                        bert_model_adv, features, is_training, percent_done)
 
                 total_loss = 0.875 * task_losses + 0.125 * task_adv_losses
-
+                print(tf.trainable_variables())
                 losses.append(total_loss)
                 self.outputs[task.name] = task_outputs
         self.loss = tf.reduce_sum(

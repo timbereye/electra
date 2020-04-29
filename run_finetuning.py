@@ -72,7 +72,9 @@ class FinetuningModel(object):
                         bert_model, features, is_training, percent_done)
 
                 grad = tf.stop_gradient(tf.gradients(task_losses, bert_model.token_embeddings))
+                print(grad.shape)
                 perturb = self._scale_l2(grad, 1)
+                print(perturb.shape)
 
                 adv_token_embeddings = bert_model.token_embeddings + perturb
 
@@ -104,9 +106,12 @@ class FinetuningModel(object):
         # 2norm(x) = a * 2norm(x/a)
         # Scale over the full sequence, dims (1, 2)
         alpha = tf.reduce_max(tf.abs(x), (1, 2), keep_dims=True) + 1e-12
+        print(alpha.shape)
         l2_norm = alpha * tf.sqrt(
             tf.reduce_sum(tf.pow(x / alpha, 2), (1, 2), keep_dims=True) + 1e-6)
+        print(l2_norm.shape)
         x_unit = x / l2_norm
+        print(x_unit.shape)
         return tf.squeeze(norm_length * x_unit)
 
 

@@ -91,7 +91,7 @@ class FinetuningModel(object):
                 total_loss = 0.875 * task_losses + 0.125 * task_adv_losses
 
                 losses.append(total_loss)
-                self.outputs[task.name] = task_adv_outputs
+                self.outputs[task.name] = task_outputs
                 print(tf.trainable_variables())
         self.loss = tf.reduce_sum(
             tf.stack(losses, -1) *

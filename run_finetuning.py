@@ -48,14 +48,8 @@ class FinetuningModel(object):
             bert_config.intermediate_size = 144 * 4
             bert_config.num_attention_heads = 4
         assert config.max_seq_length <= bert_config.max_position_embeddings
-        bert_model = modeling.BertModel(
-            bert_config=bert_config,
-            is_training=is_training,
-            input_ids=features["input_ids"],
-            input_mask=features["input_mask"],
-            token_type_ids=features["segment_ids"],
-            use_one_hot_embeddings=config.use_tpu,
-            embedding_size=config.embedding_size)
+        assert len(tasks) == 1
+
         percent_done = (tf.cast(tf.train.get_or_create_global_step(), tf.float32) /
                         tf.cast(num_train_steps, tf.float32))
 
@@ -63,15 +57,22 @@ class FinetuningModel(object):
         self.outputs = {"task_id": features["task_id"]}
         losses = []
         for task in tasks:
-            with tf.variable_scope("task_specific/" + task.name):
+            with tf.variable_scope("task_specific/" + task.name, reuse=tf.AUTO_REUSE):
+                bert_model = modeling.BertModel(
+                    bert_config=bert_config,
+                    is_training=is_training,
+                    input_ids=features["input_ids"],
+                    input_mask=features["input_mask"],
+                    token_type_ids=features["segment_ids"],
+                    use_one_hot_embeddings=config.use_tpu,
+                    embedding_size=config.embedding_size)
+
                 task_losses, task_outputs = task.get_prediction_module(
                     bert_model, features, is_training, percent_done)
 
                 grad = tf.stop_gradient(tf.gradients(task_losses, bert_model.token_embeddings))
                 perturb = self._scale_l2(grad, 0.125)
 
-                print(bert_model.token_embeddings.shape)
-                print(perturb.shape)
                 adv_token_embeddings = bert_model.token_embeddings + perturb
 
                 bert_model_adv = modeling.BertModel(
@@ -91,6 +92,7 @@ class FinetuningModel(object):
 
                 losses.append(total_loss)
                 self.outputs[task.name] = task_adv_outputs
+                print(tf.trainable_variables())
         self.loss = tf.reduce_sum(
             tf.stack(losses, -1) *
             tf.one_hot(features["task_id"], len(config.task_names)))

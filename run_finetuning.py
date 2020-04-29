@@ -57,7 +57,7 @@ class FinetuningModel(object):
         self.outputs = {"task_id": features["task_id"]}
         losses = []
         for task in tasks:
-            with tf.variable_scope("", reuse=tf.AUTO_REUSE):
+            with tf.variable_scope("task_specific/" + task.name, reuse=tf.AUTO_REUSE):
                 bert_model = modeling.BertModel(
                     bert_config=bert_config,
                     is_training=is_training,
@@ -130,7 +130,7 @@ def model_fn_builder(config: configure_finetuning.FinetuningConfig, tasks,
         scaffold_fn = None
         if init_checkpoint:
             assignment_map, _ = modeling.get_assignment_map_from_checkpoint(
-                tvars, init_checkpoint)
+                tvars, init_checkpoint, prefix="task_specific/squad/")
             print(assignment_map)
             if config.use_tpu:
                 def tpu_scaffold():

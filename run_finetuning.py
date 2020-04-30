@@ -49,7 +49,14 @@ class FinetuningModel(object):
             bert_config.num_attention_heads = 4
         assert config.max_seq_length <= bert_config.max_position_embeddings
         assert len(tasks) == 1
-
+        bert_model = modeling.BertModel(
+            bert_config=bert_config,
+            is_training=is_training,
+            input_ids=features["input_ids"],
+            input_mask=features["input_mask"],
+            token_type_ids=features["segment_ids"],
+            use_one_hot_embeddings=config.use_tpu,
+            embedding_size=config.embedding_size)
         percent_done = (tf.cast(tf.train.get_or_create_global_step(), tf.float32) /
                         tf.cast(num_train_steps, tf.float32))
 
@@ -58,15 +65,6 @@ class FinetuningModel(object):
         losses = []
         for task in tasks:
             with tf.variable_scope("task_specific/" + task.name, reuse=tf.AUTO_REUSE):
-                bert_model = modeling.BertModel(
-                    bert_config=bert_config,
-                    is_training=is_training,
-                    input_ids=features["input_ids"],
-                    input_mask=features["input_mask"],
-                    token_type_ids=features["segment_ids"],
-                    use_one_hot_embeddings=config.use_tpu,
-                    embedding_size=config.embedding_size)
-
                 with tf.variable_scope("downstream", reuse=tf.AUTO_REUSE):
                     task_losses, task_outputs = task.get_prediction_module(
                         bert_model, features, is_training, percent_done)
@@ -130,8 +128,10 @@ def model_fn_builder(config: configure_finetuning.FinetuningConfig, tasks,
         tvars = tf.trainable_variables()
         scaffold_fn = None
         if init_checkpoint:
+            # assignment_map, _ = modeling.get_assignment_map_from_checkpoint(
+            #     tvars, init_checkpoint, prefix="task_specific/squad/")
             assignment_map, _ = modeling.get_assignment_map_from_checkpoint(
-                tvars, init_checkpoint, prefix="task_specific/squad/")
+                tvars, init_checkpoint, prefix="")
             if config.use_tpu:
                 def tpu_scaffold():
                     tf.train.init_from_checkpoint(init_checkpoint, assignment_map)

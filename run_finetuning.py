@@ -73,7 +73,7 @@ class FinetuningModel(object):
 
                 grad, = tf.gradients(task_losses, bert_model.token_embeddings)
                 grad = tf.stop_gradient(grad)
-                perturb = self._scale_l2(grad, 0.3)
+                perturb = self._scale_l2(grad, 1)
 
                 adv_token_embeddings = bert_model.token_embeddings + perturb
 
@@ -91,7 +91,7 @@ class FinetuningModel(object):
                     task_adv_losses, task_adv_outputs = task.get_prediction_module(
                         bert_model_adv, features, is_training, percent_done)
 
-                total_loss = 0.7 * task_losses + 0.3 * task_adv_losses
+                total_loss = 0.95 * task_losses + 0.05 * task_adv_losses
                 losses.append(total_loss)
                 self.outputs[task.name] = task_outputs
         self.loss = tf.reduce_sum(

@@ -71,7 +71,8 @@ class FinetuningModel(object):
                     task_losses, task_outputs = task.get_prediction_module(
                         bert_model, features, is_training, percent_done)
 
-                grad = tf.stop_gradient(tf.gradients(task_losses, bert_model.token_embeddings)[0])
+                grad, = tf.gradients(task_losses, bert_model.token_embeddings)
+                grad = tf.stop_gradient(grad)
                 perturb = self._scale_l2(grad, 0.125)
 
                 adv_token_embeddings = bert_model.token_embeddings + perturb
@@ -107,7 +108,7 @@ class FinetuningModel(object):
         l2_norm = alpha * tf.sqrt(
             tf.reduce_sum(tf.pow(x / alpha, 2), (1, 2), keep_dims=True) + 1e-6)
         x_unit = x / l2_norm
-        return tf.squeeze(norm_length * x_unit)
+        return norm_length * x_unit
 
 
 def model_fn_builder(config: configure_finetuning.FinetuningConfig, tasks,

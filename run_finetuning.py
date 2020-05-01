@@ -64,7 +64,7 @@ class FinetuningModel(object):
         self.outputs = {"task_id": features["task_id"]}
         losses = []
         for task in tasks:
-            with tf.variable_scope("downstream", reuse=tf.AUTO_REUSE):
+            with tf.variable_scope("task_specific/" + task.name, reuse=tf.AUTO_REUSE):
                 task_losses, task_outputs = task.get_prediction_module(
                     bert_model, features, is_training, percent_done)
 

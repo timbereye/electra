@@ -169,5 +169,5 @@ class Preprocessor(object):
             if tensor.dtype == tf.int64:
                 example[name] = tf.cast(tensor, tf.int32)
             else:
-                example[name] = tensor
+                example[name] = tf.cast(tensor, tf.bfloat16)
         return example

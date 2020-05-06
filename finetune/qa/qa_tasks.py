@@ -418,7 +418,9 @@ class QATask(task.Task):
 
     def get_prediction_module(self, bert_model, features, is_training,
                               percent_done):
-        final_hidden = bert_model.get_sequence_output()
+        with tf.tpu.bfloat16_scope():
+            final_hidden = bert_model.get_sequence_output()
+        final_hidden = tf.cast(final_hidden, tf.float32)
 
         final_hidden_shape = modeling.get_shape_list(final_hidden, expected_rank=3)
         batch_size = final_hidden_shape[0]

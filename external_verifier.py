@@ -41,7 +41,7 @@ def eval_twice():
     tmp_file = './data/tmp_preds.json'
     tmp_eval_file = './data/tmp_eval.json'
     final_preds_file = "./data/final_squad_preds.json"
-    xargs = f"python ./data/eval.py ./data/dev-v2.0.json ./data/squad_preds.json " \
+    xargs = f"python ./data/eval.py ./data/dev-v2.0.json {prediction_file} " \
             f"--na-prob-file {null_odds_file} --na-prob-thresh {best_th}"
     os.system(xargs)
     for k, v in null_odds.items():

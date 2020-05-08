@@ -6,13 +6,13 @@ from data.eval import get_raw_scores
 import numpy as np
 import time
 
-prediction_file = './data/squad_preds.json'
+prediction_file = './data/squad_preds2.json'
 prediction = json.load(open(prediction_file, 'r', encoding='utf-8'))
 
-null_odds_file = './data/squad_null_odds.json'
+null_odds_file = './data/squad_null_odds2.json'
 null_odds = json.load(open(null_odds_file, 'r', encoding='utf-8'))
 
-eval_file = './data/squad_eval.json'
+eval_file = './data/squad_eval2.json'
 ts = json.load(open(eval_file, 'r', encoding='utf-8'))
 best_th = ts["best_exact_thresh"]
 

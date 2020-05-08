@@ -500,7 +500,8 @@ class QATask(task.Task):
         start_loss = compute_loss(start_logits, start_positions)
         end_loss = compute_loss(end_logits, end_positions)
 
-        losses = (start_loss + end_loss) / 2.0
+        # losses = (start_loss + end_loss) / 2.0
+        losses = 0.
 
         answerable_logit = tf.zeros([batch_size])
         if self.config.answerable_classifier:
@@ -516,7 +517,8 @@ class QATask(task.Task):
             answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
                 labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
                 logits=answerable_logit)
-            losses += answerable_loss * self.config.answerable_weight
+            # losses += answerable_loss * self.config.answerable_weight
+            losses = answerable_loss
 
         return losses, dict(
             loss=losses,

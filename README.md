@@ -20,7 +20,7 @@ We are initially releasing three pre-trained models:
 | ELECTRA-Base | 12 | 768 | 110M | 82.7 | [link](https://storage.googleapis.com/electra-data/electra_base.zip) |
 | ELECTRA-Large | 24 | 1024 | 335M |  85.2 | [link](https://storage.googleapis.com/electra-data/electra_large.zip) |
 
-The models were trained on uncased English text. They correspond to ELECTRA-Small++, ELECTRA-Base++, ELECTRA-1.45M  in our paper. We hope to release other models, such as multilingual models, in the future.
+The models were trained on uncased English text. They correspond to ELECTRA-Small++, ELECTRA-Base++, ELECTRA-1.75M  in our paper. We hope to release other models, such as multilingual models, in the future.
 
 On [GLUE](https://gluebenchmark.com/), ELECTRA-Large scores slightly better than ALBERT/XLNET, ELECTRA-Base scores better than BERT-Large, and ELECTRA-Small scores slightly worst than [TinyBERT](https://arxiv.org/abs/1909.10351) (but uses no distillation). See the expected results section below for detailed performance numbers.
 
@@ -50,6 +50,12 @@ Use `run_pretraining.py` to pre-train an ELECTRA model. It has the following arg
 * `--hparams` (optional): a JSON dict or path to a JSON file containing model hyperparameters, data paths, etc. See `configure_pretraining.py` for the supported hyperparameters.
 
 If training is halted, re-running the `run_pretraining.py` with the same arguments will continue the training where it left off.
+
+You can continue pre-training from the released ELECTRA checkpoints by
+1. Setting the model-name to point to a downloaded model (e.g., `--model-name electra_small` if you downloaded weights to `$DATA_DIR/electra_small`).
+2. Setting `num_train_steps` by (for example) adding `"num_train_steps": 4010000` to the `--hparams`. This will continue training the small model for 10000 more steps (it has already been trained for 4e6 steps).
+3. Increase the learning rate to account for the linear learning rate decay. For example, to start with a learning rate of 2e-4 you should set the `learning_rate` hparam to 2e-4 * (4e6 + 10000) / 10000.
+4. For ELECTRA-Small, you also need to specifiy `"generator_hidden_size": 1.0` in the `hparams` because we did not use a small generator for that model.
 
 ##  Quickstart: Pre-train a small ELECTRA model.
 These instructions pre-train a small ELECTRA model (12 layers, 256 hidden size). Unfortunately, the data we used in the paper is not publicly available, so we will use the [OpenWebTextCorpus](https://skylion007.github.io/OpenWebTextCorpus/) released by Aaron Gokaslan and Vanya Cohen instead. The fully-trained model (~4 days on a v100 GPU) should perform roughly in between [GPT](https://s3-us-west-2.amazonaws.com/openai-assets/research-covers/language-unsupervised/language_understanding_paper.pdf) and BERT-Base in terms of GLUE performance. By default the model is trained on length-128 sequences, so it is not suitable for running on question answering. See the "expected results" section below for more details on model performance.
@@ -121,7 +127,7 @@ The code supports [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/) 1.1 and 2
 
 * **Squad 1.1**: Download the [train](https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v1.1.json) and [dev](https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v1.1.json) datasets and move them under `$DATA_DIR/finetuning_data/squadv1/(train|dev).json`
 * **Squad 2.0**: Download the datasets from the [SQuAD Website](https://rajpurkar.github.io/SQuAD-explorer/) and move them under `$DATA_DIR/finetuning_data/squad/(train|dev).json`
-* **MRQA tasks**: Download the data from [here](https://github.com/mrqa/MRQA-Shared-Task-2019#datasets). Move the data to `$DATA_DIR/(newsqa|naturalqs|triviaqa|searchqa)/(train|dev).jsonl`.
+* **MRQA tasks**: Download the data from [here](https://github.com/mrqa/MRQA-Shared-Task-2019#datasets). Move the data to `$DATA_DIR/finetuning_data/(newsqa|naturalqs|triviaqa|searchqa)/(train|dev).jsonl`.
 
 Then run (for example)
 ```
@@ -132,7 +138,7 @@ This repository uses the official evaluation code released by the [SQuAD](https:
 
 ### Finetune ELECTRA on sequence tagging
 
-Download the CoNLL-2000 text chunking dataset from [here](https://www.clips.uantwerpen.be/conll2000/chunking/) and put it under `$DATA_DIR/chunk/(train|dev).txt`. Then run
+Download the CoNLL-2000 text chunking dataset from [here](https://www.clips.uantwerpen.be/conll2000/chunking/) and put it under `$DATA_DIR/finetuning_data/chunk/(train|dev).txt`. Then run
 ```
 python3 run_finetuning.py --data-dir $DATA_DIR --model-name electra_base --hparams '{"model_size": "base", "task_names": ["chunk"]}'
 ```
@@ -149,7 +155,7 @@ Here are expected results for ELECTRA on various tasks (test set for chunking, d
 | --- | --- | --- | --- | ---  | ---  | --- | --- | --- | ---| ---| --- |
 | Metrics | MCC | Acc | Acc | Spearman  | Acc  | Acc | Acc | Acc | EM | EM | F1 |
 | ELECTRA-Large| 69.1 | 96.9 | 90.8 | 92.6 | 92.4 | 90.9 | 95.0 | 88.0 | 89.7 | 88.1 | 97.2 |
-| ELECTRA-Base | 67.7 | 95.1 | 89.5 | 91.2 | 91.5  | 88.8  | 93.2 | 82.7 | 86.8 | 83.7| 97.1 |
+| ELECTRA-Base | 67.7 | 95.1 | 89.5 | 91.2 | 91.5  | 88.8  | 93.2 | 82.7 | 86.8 | 80.5 | 97.1 |
 | ELECTRA-Small | 57.0 | 91.2 | 88.0 |  87.5 | 89.0  | 81.3 | 88.4 | 66.7 | 75.8 | 70.1 |  96.5 |
 | ELECTRA-Small-OWT | 56.8 | 88.3 | 87.4 |  86.8 | 88.3  | 78.9 | 87.9 | 68.5 | -- | -- |  -- |
 
@@ -162,7 +168,8 @@ If you use this code for your publication, please cite the original paper:
   title = {{ELECTRA}: Pre-training Text Encoders as Discriminators Rather Than Generators},
   author = {Kevin Clark and Minh-Thang Luong and Quoc V. Le and Christopher D. Manning},
   booktitle = {ICLR},
-  year = {2020}
+  year = {2020},
+  url = {https://openreview.net/pdf?id=r1xMH1BtvB}
 }
 ```
 

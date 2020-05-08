@@ -33,6 +33,12 @@ from finetune.qa import qa_metrics
 from model import modeling
 from model import tokenization
 from util import utils
+import numpy as np
+from functools import reduce
+
+# dependence parser
+import stanza
+nlp = stanza.Pipeline(lang='en', processors='tokenize,pos,lemma,depparse')
 
 
 class QAExample(task.Example):
@@ -48,7 +54,14 @@ class QAExample(task.Example):
                  orig_answer_text=None,
                  start_position=None,
                  end_position=None,
-                 is_impossible=False):
+                 is_impossible=False,
+                 all_doc_tokens=None,
+                 orig_to_tok_index=None,
+                 tok_to_orig_index=None,
+                 all_doc_tokens_dep_mask=None,
+                 plau_answer_start=None,
+                 plau_answer_end=None,
+                 plau_answer_text=None):
         super(QAExample, self).__init__(task_name)
         self.eid = eid
         self.qas_id = qas_id
@@ -59,6 +72,13 @@ class QAExample(task.Example):
         self.start_position = start_position
         self.end_position = end_position
         self.is_impossible = is_impossible
+        self.all_doc_tokens = all_doc_tokens
+        self.orig_to_tok_index = orig_to_tok_index
+        self.tok_to_orig_index = tok_to_orig_index
+        self.all_doc_tokens_dep_mask = all_doc_tokens_dep_mask
+        self.plau_answer_start = plau_answer_start
+        self.plau_answer_end = plau_answer_end
+        self.plau_answer_text = plau_answer_text
 
     def __str__(self):
         return self.__repr__()
@@ -75,6 +95,12 @@ class QAExample(task.Example):
             s += ", end_position: %d" % self.end_position
         if self.start_position:
             s += ", is_impossible: %r" % self.is_impossible
+        if self.plau_answer_start:
+            s += ", plau_answer_start: %d" % self.plau_answer_start
+        if self.plau_answer_end:
+            s += ", plau_answer_end: %d" % self.plau_answer_end
+        if self.plau_answer_text:
+            s += ", plau_answer_text: %s" % self.plau_answer_text
         return s
 
 
@@ -167,6 +193,7 @@ class QATask(task.Task):
         self._tokenizer = tokenizer
         self._examples = {}
         self.v2 = v2
+        self.dep_max = 5120
 
     def _add_examples(self, examples, example_failures, paragraph, split):
         paragraph_text = paragraph["context"]
@@ -184,6 +211,121 @@ class QATask(task.Task):
                 prev_is_whitespace = False
             char_to_word_offset.append(len(doc_tokens) - 1)
 
+        def parse(sentence):
+            """ 解析一个句子，返回dependence heads etc """
+            doc = nlp(sentence)
+            heads = []
+            words = []
+            for sent in doc.sentences:
+                heads_tmp = []
+                num_tmp = sum([len(x) if x else 0 for x in heads])
+                for word in sent.words:
+                    words.append(word.text)
+                    if word.head == 0:
+                        heads_tmp.append(0)
+                    else:
+                        heads_tmp.append(word.head + num_tmp)
+                heads.append(heads_tmp)
+            heads = reduce(lambda x, y: x + y, heads)
+            return heads, words
+
+        def parse_and_trim(tokens):
+            """ 输入空格分词后的tokens list, parse后按照输入调整heads """
+            heads, words = parse(" ".join(tokens))
+            t2w = {}
+            w2t = {}
+            ti = 0
+            wi = 0
+            last_move = None  # 交替移动指针的控制
+            while (ti < len(tokens)) and (wi < len(words)):
+                if tokens[ti] == words[wi]:
+                    t2w[ti] = wi
+                    w2t[wi] = ti
+                    ti += 1
+                    wi += 1
+                    last_move = None
+                elif tokens[ti] in words[wi]:
+                    t2w[ti] = wi
+                    if wi not in w2t:
+                        w2t[wi] = ti
+                    ti += 1
+                    last_move = 't'
+                elif words[wi] in tokens[ti]:
+                    w2t[wi] = ti
+                    if ti not in t2w:
+                        t2w[ti] = wi
+                    wi += 1
+                    last_move = 'w'
+                else:
+                    if last_move == 'w':
+                        ti += 1
+                        last_move = 't'
+                    elif last_move == 't':
+                        wi += 1
+                        last_move = 'w'
+                    else:
+                        wi += 1
+                        ti += 1
+                        last_move = None
+            heads_ = []
+            for ti in range(len(tokens)):
+                wi = t2w.get(ti, None)
+                if wi is not None:
+                    h = heads[wi]
+                    if h == 0:
+                        heads_.append(0)
+                    else:
+                        h_ = w2t.get(h - 1, None)
+                        if h_ is not None:
+                            heads_.append(h_ + 1)
+                        else:
+                            heads_.append(ti + 1)
+                else:
+                    heads_.append(ti + 1)
+            return heads_
+
+        def heads_2_dep_matrix(heads):
+            """ 将dependence heads转换为dependence matrix """
+            arr = np.diag((1,) * len(heads))
+            for i, j in enumerate(heads):
+                if j != 0:
+                    arr[i, j - 1] = 1
+            while True:  # 传递依赖
+                arr1 = np.matmul(arr, arr)
+                arr1[arr1 > 1] = 1
+                if (arr1 == arr).all():
+                    break
+                else:
+                    arr = arr1
+            return arr
+
+        tok_to_orig_index = []
+        orig_to_tok_index = []
+        all_doc_tokens = []
+        heads = parse_and_trim(doc_tokens)  # dependence heads
+        for (i, token) in enumerate(doc_tokens):
+            orig_to_tok_index.append(len(all_doc_tokens))
+            sub_tokens = self._tokenizer.tokenize(token)
+            for j, sub_token in enumerate(sub_tokens):
+                tok_to_orig_index.append(i)
+                all_doc_tokens.append(sub_token)
+
+        heads_piece = []
+        last_orig_index = None
+        for ind in range(len(all_doc_tokens)):
+            orig_index = tok_to_orig_index[ind]
+            if orig_index == last_orig_index:
+                heads_piece.append(ind)
+            else:
+                h = heads[orig_index]
+                if h == 0:
+                    heads_piece.append(0)
+                else:
+                    heads_piece.append(orig_to_tok_index[h - 1] + 1)
+                last_orig_index = orig_index
+
+        all_doc_tokens_dep_mask = heads_2_dep_matrix(heads_piece)
+
         for qa in paragraph["qas"]:
             qas_id = qa["id"] if "id" in qa else None
             qid = qa["qid"] if "qid" in qa else None
@@ -192,6 +334,7 @@ class QATask(task.Task):
             end_position = None
             orig_answer_text = None
             is_impossible = False
+            plau_answer_text = plau_answer_start_w = plau_answer_end_w = None
             if split == "train":
                 if self.v2:
                     is_impossible = qa["is_impossible"]
@@ -234,6 +377,27 @@ class QATask(task.Task):
                     start_position = -1
                     end_position = -1
                     orig_answer_text = ""
+                    plausible_answers = qa.get("plausible_answers", None)
+                    if plausible_answers:
+                        plau_answer_text = plausible_answers[0]["text"]
+                        plau_answer_start = plausible_answers[0]["answer_start"]
+                        plau_answer_length = len(plau_answer_text)
+                        if plau_answer_start + plau_answer_length - 1 >= len(char_to_word_offset):
+                            tf.logging.waring("plausible answer error, pass.")
+                            plau_answer_text = plau_answer_start_w = plau_answer_end_w = None
+                        else:
+                            plau_answer_start_w = char_to_word_offset[plau_answer_start]
+                            plau_answer_end_w = char_to_word_offset[plau_answer_start + plau_answer_length - 1]
+
+                            actual_text = " ".join(
+                                doc_tokens[plau_answer_start_w:(plau_answer_end_w + 1)])
+                            cleaned_answer_text = " ".join(
+                                tokenization.whitespace_tokenize(plau_answer_text))
+                            actual_text = actual_text.lower()
+                            cleaned_answer_text = cleaned_answer_text.lower()
+                            if actual_text.find(cleaned_answer_text) == -1:
+                                tf.logging.waring("plausible answer error, pass.")
+                                plau_answer_text = plau_answer_start_w = plau_answer_end_w = None
 
             example = QAExample(
                 task_name=self.name,
@@ -245,7 +409,15 @@ class QATask(task.Task):
                 orig_answer_text=orig_answer_text,
                 start_position=start_position,
                 end_position=end_position,
-                is_impossible=is_impossible)
+                is_impossible=is_impossible,
+                all_doc_tokens=all_doc_tokens,
+                orig_to_tok_index=orig_to_tok_index,
+                tok_to_orig_index=tok_to_orig_index,
+                all_doc_tokens_dep_mask=all_doc_tokens_dep_mask,
+                plau_answer_start=plau_answer_start_w,
+                plau_answer_text=plau_answer_text,
+                plau_answer_end=plau_answer_end_w,
+            )
             examples.append(example)
 
     def get_feature_specs(self):
@@ -254,8 +426,22 @@ class QATask(task.Task):
             feature_spec.FeatureSpec(self.name + "_start_positions", []),
             feature_spec.FeatureSpec(self.name + "_end_positions", []),
             feature_spec.FeatureSpec(self.name + "_is_impossible", []),
+            feature_spec.FeatureSpec(self.name + "_plau_answer_start", []),
+            feature_spec.FeatureSpec(self.name + "_plau_answer_end", []),
+            feature_spec.FeatureSpec(self.name + "_dep_mask_x", [self.dep_max]),
+            feature_spec.FeatureSpec(self.name + "_dep_mask_y", [self.dep_max]),
+            feature_spec.FeatureSpec(self.name + "_dep_mask_len", []),
         ]
 
+    """
+    import stanza
+
+    nlp = stanza.Pipeline(lang='fr', processors='tokenize,mwt,pos,lemma,depparse')
+    doc = nlp('Nous avons atteint la fin du sentier.')
+    print(*[f'id: {word.id}\tword: {word.text}\thead id: {word.head}\thead: {sent.words[word.head-1].text
+    if word.head > 0 else "root"}\tdeprel: {word.deprel}' for sent in doc.sentences for word in sent.words], sep='\n')
+    """
+    # 将dependence matrix作为attention mask引入模型，这里我们只考虑context
     def featurize(self, example: QAExample, is_training, log=False,
                   for_eval=False):
         all_features = []
@@ -264,21 +450,27 @@ class QATask(task.Task):
         if len(query_tokens) > self.config.max_query_length:
             query_tokens = query_tokens[0:self.config.max_query_length]
 
-        tok_to_orig_index = []
-        orig_to_tok_index = []
-        all_doc_tokens = []
-        for (i, token) in enumerate(example.doc_tokens):
-            orig_to_tok_index.append(len(all_doc_tokens))
-            sub_tokens = self._tokenizer.tokenize(token)
-            for sub_token in sub_tokens:
-                tok_to_orig_index.append(i)
-                all_doc_tokens.append(sub_token)
+        all_doc_tokens = example.all_doc_tokens
+        orig_to_tok_index = example.orig_to_tok_index
+        tok_to_orig_index = example.tok_to_orig_index
+        all_doc_tokens_dep_mask = example.all_doc_tokens_dep_mask
 
         tok_start_position = None
         tok_end_position = None
+        tok_plau_answer_start = None
+        tok_plau_answer_end = None
         if is_training and example.is_impossible:
             tok_start_position = -1
             tok_end_position = -1
+            if example.plau_answer_start is not None:
+                tok_plau_answer_start = orig_to_tok_index[example.plau_answer_start]
+                if example.plau_answer_end < len(example.doc_tokens) - 1:
+                    tok_plau_answer_end = orig_to_tok_index[example.plau_answer_end + 1] - 1
+                else:
+                    tok_plau_answer_end = len(all_doc_tokens) - 1
+                (tok_plau_answer_start, tok_plau_answer_end) = _improve_answer_span(
+                    all_doc_tokens, tok_plau_answer_start, tok_plau_answer_end, self._tokenizer,
+                    example.plau_answer_text)
         if is_training and not example.is_impossible:
             tok_start_position = orig_to_tok_index[example.start_position]
             if example.end_position < len(example.doc_tokens) - 1:
@@ -351,6 +543,8 @@ class QATask(task.Task):
 
             start_position = None
             end_position = None
+            plau_answer_start = 0
+            plau_answer_end = 0
             if is_training and not example.is_impossible:
                 # For training, if our document chunk does not contain an annotation
                 # we throw it out, since there is nothing to predict.
@@ -371,6 +565,17 @@ class QATask(task.Task):
             if is_training and example.is_impossible:
                 start_position = 0
                 end_position = 0
+                if tok_plau_answer_start is not None:
+                    doc_start = doc_span.start
+                    doc_end = doc_span.start + doc_span.length - 1
+                    if (tok_plau_answer_start >= doc_start and
+                            tok_plau_answer_end <= doc_end):
+                        doc_offset = len(query_tokens) + 2
+                        plau_answer_start = tok_plau_answer_start - doc_start + doc_offset
+                        plau_answer_end = tok_plau_answer_end - doc_start + doc_offset
+                        if plau_answer_start > plau_answer_end:
+                            tf.logging.waring("plausible answer error, pass.")
+                            plau_answer_start = plau_answer_end = 0
 
             if log:
                 utils.log("*** Example ***")
@@ -393,12 +598,39 @@ class QATask(task.Task):
                     utils.log("end_position: %d" % end_position)
                     utils.log("answer: %s" % (tokenization.printable_text(answer_text)))
 
+            dep_mask_x = []
+            dep_mask_y = []
+            shift = len(query_tokens) + 2
+            piece_mask_matrix = all_doc_tokens_dep_mask[doc_span.start:doc_span.start+doc_span.length,
+                                doc_span.start:doc_span.start+doc_span.length]
+            shape = piece_mask_matrix.shape[0]
+            for i in range(shape):
+                for j in range(shape):
+                    if piece_mask_matrix[i, j] == 1:
+                        dep_mask_x.append(i + shift)
+                        dep_mask_y.append(j + shift)
+            dep_mask_len = len(dep_mask_x)
+            if len(dep_mask_x) > self.dep_max:
+                tf.logging.waring("dep mask over dep_max.")
+                dep_mask_x = dep_mask_x[:self.dep_max]
+                dep_mask_y = dep_mask_y[:self.dep_max]
+                dep_mask_len = self.dep_max
+            else:
+                pad_len = self.dep_max - len(dep_mask_x)
+                while pad_len:
+                    dep_mask_x.append(-1)
+                    dep_mask_y.append(-1)
+                    pad_len -= 1
+
             features = {
                 "task_id": self.config.task_names.index(self.name),
                 self.name + "_eid": (1000 * example.eid) + doc_span_index,
                 "input_ids": input_ids,
                 "input_mask": input_mask,
                 "segment_ids": segment_ids,
+                self.name + "_dep_mask_x": dep_mask_x,
+                self.name + "_dep_mask_y": dep_mask_y,
+                self.name + "_dep_mask_len": dep_mask_len,
             }
             if for_eval:
                 features.update({
@@ -411,7 +643,9 @@ class QATask(task.Task):
                 features.update({
                     self.name + "_start_positions": start_position,
                     self.name + "_end_positions": end_position,
-                    self.name + "_is_impossible": example.is_impossible
+                    self.name + "_is_impossible": example.is_impossible,
+                    self.name + "_plau_answer_start": plau_answer_start,
+                    self.name + "_plau_answer_end": plau_answer_end,
                 })
             all_features.append(features)
         return all_features
@@ -419,6 +653,45 @@ class QATask(task.Task):
     def get_prediction_module(self, bert_model, features, is_training,
                               percent_done):
         final_hidden = bert_model.get_sequence_output()
+
+        # sgnet
+        # dep_mask_x = features[self.name + "_dep_mask_x"]
+        # dep_mask_y = features[self.name + "_dep_mask_y"]
+        # dep_mask_len = features[self.name + "_dep_mask_len"]
+        #
+        # def fn(xyz):
+        #     x = xyz[0]
+        #     y = xyz[1]
+        #     length = xyz[2]
+        #     x = x[:length]
+        #     y = y[:length]
+        #     st = tf.SparseTensor(indices=tf.cast(tf.transpose([x, y]), tf.int64),
+        #                          values=tf.ones_like(x, dtype=tf.float32),
+        #                          dense_shape=[self.config.max_seq_length, self.config.max_seq_length])
+        #     dt = tf.sparse_tensor_to_dense(st)
+        #     return dt
+        #
+        # dep_mask = tf.map_fn(fn, (dep_mask_x, dep_mask_y, dep_mask_len), dtype=tf.float32)
+        dep_mask = features["squad_dep_mask"]
+        dep_mask = tf.reshape(dep_mask, [-1, self.config.max_seq_length, self.config.max_seq_length])
+        with tf.variable_scope("dependence"):
+            bert_config = bert_model.config
+            dep_att_output, _ = modeling.transformer_model(
+                input_tensor=final_hidden,
+                attention_mask=dep_mask,
+                hidden_size=bert_config.hidden_size,
+                num_hidden_layers=1,
+                num_attention_heads=bert_config.num_attention_heads,
+                intermediate_size=bert_config.intermediate_size,
+                intermediate_act_fn=modeling.get_activation(bert_config.hidden_act),
+                hidden_dropout_prob=bert_config.hidden_dropout_prob,
+                attention_probs_dropout_prob=bert_config.attention_probs_dropout_prob,
+                initializer_range=bert_config.initializer_range,
+                do_return_all_layers=False)
+        weight = tf.get_variable(name="weight", dtype=tf.float32, initializer=tf.zeros_initializer(),
+                                 shape=(), trainable=True)
+        weight = tf.sigmoid(weight)
+        final_hidden = weight * final_hidden + (1 - weight) * dep_att_output
 
         final_hidden_shape = modeling.get_shape_list(final_hidden, expected_rank=3)
         batch_size = final_hidden_shape[0]
@@ -501,6 +774,60 @@ class QATask(task.Task):
         end_loss = compute_loss(end_logits, end_positions)
 
         losses = (start_loss + end_loss) / 2.0
+
+        # plausible answer loss
+        def compute_loss_for_plau(start_logits, end_logits, start_positions, end_positions, start_positions_true,
+                                  alpha=1.0, beta=1.0):
+            start_probs = tf.nn.softmax(start_logits)
+            end_probs = tf.nn.softmax(end_logits)
+            log_neg_start_probs = tf.log(tf.clip_by_value(1 - start_probs, 1e-30, 1))
+            log_neg_end_probs = tf.log(tf.clip_by_value(1 - end_probs, 1e-30, 1))
+            start_positions_mask = tf.cast(tf.sequence_mask(start_positions, maxlen=seq_length), tf.float32)
+            end_positions_mask = tf.cast(tf.sequence_mask(end_positions + 1, maxlen=seq_length), tf.float32)
+            positions_mask = end_positions_mask - start_positions_mask
+            one_hot_positions = tf.one_hot(
+                start_positions_true, depth=seq_length, dtype=tf.float32)
+            positions_mask = positions_mask * (1 - one_hot_positions)  # 忽略切出来的无答案
+
+            # mask_0 = tf.zeros([batch_size, 1])
+            # mask_1 = tf.ones([batch_size, seq_length - 1])
+            # zero_mask = tf.concat([mask_0, mask_1], axis=1)
+            # positions_mask = positions_mask * zero_mask
+            loss1 = - tf.reduce_sum(positions_mask * log_neg_start_probs, axis=-1)
+            loss1 = tf.reduce_mean(loss1)
+            loss2 = - tf.reduce_sum(positions_mask * log_neg_end_probs, axis=-1)
+            loss2 = tf.reduce_mean(loss2)
+            return (loss1 * alpha + loss2 * beta) * 0.5
+
+        plau_loss = compute_loss_for_plau(start_logits, end_logits,
+                                          features[self.name + "_plau_answer_start"],
+                                          features[self.name + "_plau_answer_end"],
+                                          features[self.name + "_start_positions"], 1.0, 1.0)
+        losses += plau_loss
+
+        # plausible answer loss
+        # def compute_loss_for_plau(start_logits, end_logits, start_positions, end_positions, alpha=1.0):
+        #   start_probs = tf.nn.softmax(start_logits)
+        #   end_probs = tf.nn.softmax(end_logits)
+        #   log_neg_start_probs = tf.log(tf.clip_by_value(1 - start_probs, 1e-30, 1))
+        #   log_neg_end_probs = tf.log(tf.clip_by_value(1 - end_probs, 1e-30, 1))
+        #   start_positions_mask = tf.cast(tf.sequence_mask(start_positions, maxlen=seq_length), tf.float32)
+        #   end_positions_mask = tf.cast(tf.sequence_mask(end_positions + 1, maxlen=seq_length), tf.float32)
+        #   positions_mask = end_positions_mask - start_positions_mask
+        #   mask_0 = tf.zeros([batch_size, 1])
+        #   mask_1 = tf.ones([batch_size, seq_length - 1])
+        #   zero_mask = tf.concat([mask_0, mask_1], axis=1)
+        #   positions_mask = positions_mask * zero_mask
+        #   loss1 = - tf.reduce_sum(positions_mask * log_neg_start_probs, axis=-1)
+        #   loss1 = tf.reduce_mean(loss1)
+        #   loss2 = - tf.reduce_sum(positions_mask * log_neg_end_probs, axis=-1)
+        #   loss2 = tf.reduce_mean(loss2)
+        #   return (loss1 + loss2) * 0.5 * alpha
+        #
+        # plau_loss = compute_loss_for_plau(start_logits, end_logits,
+        #                                   features[self.name + "_plau_answer_start"],
+        #                                   features[self.name + "_plau_answer_end"], 4.0)
+        # losses += plau_loss
 
         answerable_logit = tf.zeros([batch_size])
         if self.config.answerable_classifier:

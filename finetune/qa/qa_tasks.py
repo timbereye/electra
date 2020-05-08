@@ -799,11 +799,11 @@ class QATask(task.Task):
             loss2 = tf.reduce_mean(loss2)
             return (loss1 * alpha + loss2 * beta) * 0.5
 
-        plau_loss = compute_loss_for_plau(start_logits, end_logits,
-                                          features[self.name + "_plau_answer_start"],
-                                          features[self.name + "_plau_answer_end"],
-                                          features[self.name + "_start_positions"], 1.0, 1.0)
-        losses += plau_loss
+        # plau_loss = compute_loss_for_plau(start_logits, end_logits,
+        #                                   features[self.name + "_plau_answer_start"],
+        #                                   features[self.name + "_plau_answer_end"],
+        #                                   features[self.name + "_start_positions"], 1.0, 1.0)
+        # losses += plau_loss
 
         # plausible answer loss
         # def compute_loss_for_plau(start_logits, end_logits, start_positions, end_positions, alpha=1.0):

@@ -18,8 +18,8 @@ print("init eval:")
 xargs = f"python eval.py dev-v2.0.json squad_preds.json --na-prob-file squad_null_odds.json "
 os.system(xargs)
 
-answer_chooses = pickle.load(open('dev_f1_predict_results3.pkl', 'rb'))
-nbest = pickle.load(open('dev_all_nbest_file.pkl', 'rb'))
+answer_chooses = pickle.load(open('dev_f1_predict_results.pkl', 'rb'))
+nbest = pickle.load(open('dev_all_nbest.pkl', 'rb'))
 
 tmp_file = 'tmp_preds'
 tmp_eval_file = 'tmp_eval_file'

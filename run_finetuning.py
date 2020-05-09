@@ -214,8 +214,6 @@ class ModelRunner(object):
         predict_input_fn, _ = self._preprocessor.prepare_predict(tasks, split)
         results = self._estimator.predict(input_fn=predict_input_fn,
                                           yield_single_examples=True)
-        import pickle
-        pickle.dump(results, open('predict_results.pkl', 'wb'))
         # task name -> eid -> model-logits
         # logits = collections.defaultdict(dict)
         # for r in results:

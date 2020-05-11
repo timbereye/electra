@@ -506,7 +506,7 @@ class QATask(task.Task):
                                2) * question_mask
             contextual_q = tf.einsum(" bl, ble -> be ", gamma, intermediate_q)
             project_w = tf.get_variable(name="project_w",
-                                        shape=[hidden_size],
+                                        shape=[hidden_size * 2],
                                         initializer=modeling.create_initializer(),
                                         trainable=True)
             final_hidden = tf.einsum(" bLe,e,be -> bLe", contextual_p, project_w, contextual_q, name="slqa_output")

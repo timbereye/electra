@@ -423,16 +423,113 @@ class QATask(task.Task):
         final_hidden_shape = modeling.get_shape_list(final_hidden, expected_rank=3)
         batch_size, seq_length, hidden_size = final_hidden_shape
 
-        # from tcn import TCN
-        # partial_attention = TCN(nb_filters=hidden_size, kernel_size=3, nb_stacks=1,
-        #                         dilations=[1, 2, 4, 8, ], padding='same', use_skip_connections=True,
-        #                         dropout_rate=0., return_sequences=True, activation='relu',
-        #                         kernel_initializer="he_normal", use_batch_norm=True, use_layer_norm=True)(final_hidden)
-        # final_hidden += partial_attention
+        input_mask = tf.cast(features["input_mask"], tf.float32)
+        segment_ids = tf.cast(features["segment_ids"], tf.float32)
+        answer_mask = input_mask * segment_ids + tf.one_hot(0, seq_length)
 
-        answer_mask = tf.cast(features["input_mask"], tf.float32)
-        answer_mask *= tf.cast(features["segment_ids"], tf.float32)
-        answer_mask += tf.one_hot(0, seq_length)
+        with tf.variable_scope("slqa", reuse=tf.AUTO_REUSE):
+
+            def fusion_layer(x, y):
+                with tf.variable_scope("fusion", reuse=tf.AUTO_REUSE):
+                    z = tf.concat([x, y, x * y, x - y], axis=2)
+                    gated = tf.layers.dense(z, 1,
+                                            activation=tf.nn.sigmoid,
+                                            use_bias=True,
+                                            kernel_initializer=modeling.create_initializer())
+                    fusion = tf.layers.dense(z, hidden_size,
+                                             activation=tf.nn.tanh,
+                                             use_bias=True,
+                                             kernel_initializer=modeling.create_initializer())
+                return gated * fusion + (1 - gated) * x
+
+            # def biLSTM_layer(lstm_inputs, lstm_dim, lengths=None, name=None,
+            #                  initializer=modeling.create_initializer(albert_config.initializer_range)):
+            #     from layers import CoupledInputForgetGateLSTMCell
+            #     with tf.variable_scope("char_BiLSTM" if not name else name, reuse=tf.AUTO_REUSE):
+            #         lstm_cell = {}
+            #         for direction in ["forward", "backward"]:
+            #             with tf.variable_scope(direction):
+            #                 lstm_cell[direction] = CoupledInputForgetGateLSTMCell(
+            #                     lstm_dim,
+            #                     use_peepholes=True,
+            #                     initializer=initializer,
+            #                     state_is_tuple=True
+            #                 )
+            #         outputs, final_states = tf.nn.bidirectional_dynamic_rnn(
+            #             lstm_cell["forward"],
+            #             lstm_cell["backward"],
+            #             lstm_inputs,
+            #             dtype=tf.float32,
+            #             sequence_length=lengths
+            #         )
+            #     return tf.concat(outputs, axis=2), final_states
+
+            encoding_dim = 256
+            question_mask = tf.cast(
+                tf.logical_and(tf.cast(input_mask, tf.bool), tf.logical_not(tf.cast(segment_ids, tf.bool))), tf.float32)
+            passage_mask = tf.cast(segment_ids, tf.float32)
+
+            encoded_question = final_hidden * tf.expand_dims(question_mask, 2)
+            encoded_passage = final_hidden * tf.expand_dims(passage_mask, 2)
+
+            s = tf.einsum(" blh, bLh -> blL ", encoded_question, encoded_passage)
+            alpha = tf.einsum(" blL, bl -> blL ", tf.nn.softmax(s, axis=1), question_mask)
+
+            q_aware_p = tf.einsum(" bLl, blh -> bLh ", alpha, encoded_question)
+
+            beta = tf.einsum(" blL, bL -> blL ", tf.nn.softmax(s, axis=2), passage_mask)
+
+            p_aware_q = tf.einsum(" bLl, bLh -> blh ", beta, encoded_passage)
+
+            fused_passage = fusion_layer(encoded_passage, q_aware_p)
+
+            fused_question = fusion_layer(encoded_question, p_aware_q)
+
+            self_w = tf.get_variable(name="self_w",
+                                     shape=[hidden_size, hidden_size],
+                                     initializer=modeling.create_initializer(),
+                                     trainable=True)
+            self_b = tf.get_variable(name="self_b",
+                                     shape=[seq_length],
+                                     initializer=modeling.create_initializer(),
+                                     trainable=True)
+            self_att_p = tf.einsum(" blh, hH, bLH -> blL ", encoded_passage, self_w, encoded_passage) + self_b
+            intermediate_self_aware_p = tf.einsum(" blL, bL -> blL ", tf.nn.softmax(self_att_p, axis=2), passage_mask)
+            self_aware_passage = tf.einsum(" bLl, blh -> bLh ", intermediate_self_aware_p, fused_passage)
+
+            intermediate_p = fusion_layer(fused_passage, self_aware_passage)
+            with tf.variable_scope("contextual_layer_p", reuse=tf.AUTO_REUSE):
+                contextual_p_hidden, _ = modeling.transformer_model(intermediate_p,
+                                                                    attention_mask=passage_mask,
+                                                                    hidden_size=hidden_size,
+                                                                    num_hidden_layers=1,
+                                                                    num_attention_heads=hidden_size // 64,
+                                                                    intermediate_size=hidden_size * 4,
+                                                                    hidden_dropout_prob=0.1,
+                                                                    attention_probs_dropout_prob=0.1,
+                                                                    initializer_range=0.02,
+                                                                    do_return_all_layers=False)
+            with tf.variable_scope("contextual_layer_q", reuse=tf.AUTO_REUSE):
+                contextual_q_hidden, _ = modeling.transformer_model(fused_question,
+                                                                    attention_mask=question_mask,
+                                                                    hidden_size=hidden_size,
+                                                                    num_hidden_layers=1,
+                                                                    num_attention_heads=hidden_size // 64,
+                                                                    intermediate_size=hidden_size * 4,
+                                                                    hidden_dropout_prob=0.1,
+                                                                    attention_probs_dropout_prob=0.1,
+                                                                    initializer_range=0.02,
+                                                                    do_return_all_layers=False)
+            contextual_p = tf.einsum(" bLe, bL -> bLe ", contextual_p_hidden, passage_mask)
+            intermediate_q = tf.einsum(" ble, bl -> ble ", contextual_q_hidden, question_mask)
+            gamma = tf.squeeze(tf.nn.softmax(tf.layers.dense(intermediate_q, 1, use_bias=False), axis=1),
+                               2) * question_mask
+            contextual_q = tf.einsum(" bl, ble -> be ", gamma, intermediate_q)
+            project_w = tf.get_variable(name="project_w",
+                                        shape=[encoding_dim * 2],
+                                        initializer=modeling.create_initializer(),
+                                        trainable=True)
+            final_hidden = tf.einsum(" bLe,e,be -> bLe", contextual_p, project_w, contextual_q, name="slqa_output")
 
         start_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
 

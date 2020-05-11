@@ -430,39 +430,16 @@ class QATask(task.Task):
         with tf.variable_scope("slqa", reuse=tf.AUTO_REUSE):
 
             def fusion_layer(x, y):
-                with tf.variable_scope("fusion", reuse=tf.AUTO_REUSE):
-                    z = tf.concat([x, y, x * y, x - y], axis=2)
-                    gated = tf.layers.dense(z, 1,
-                                            activation=tf.nn.sigmoid,
-                                            use_bias=True,
-                                            kernel_initializer=modeling.create_initializer())
-                    fusion = tf.layers.dense(z, hidden_size,
-                                             activation=tf.nn.tanh,
-                                             use_bias=True,
-                                             kernel_initializer=modeling.create_initializer())
+                z = tf.concat([x, y, x * y, x - y], axis=2)
+                gated = tf.layers.dense(z, 1,
+                                        activation=tf.nn.sigmoid,
+                                        use_bias=True,
+                                        kernel_initializer=modeling.create_initializer())
+                fusion = tf.layers.dense(z, hidden_size,
+                                         activation=tf.nn.tanh,
+                                         use_bias=True,
+                                         kernel_initializer=modeling.create_initializer())
                 return gated * fusion + (1 - gated) * x
-
-            # def biLSTM_layer(lstm_inputs, lstm_dim, lengths=None, name=None,
-            #                  initializer=modeling.create_initializer(albert_config.initializer_range)):
-            #     from layers import CoupledInputForgetGateLSTMCell
-            #     with tf.variable_scope("char_BiLSTM" if not name else name, reuse=tf.AUTO_REUSE):
-            #         lstm_cell = {}
-            #         for direction in ["forward", "backward"]:
-            #             with tf.variable_scope(direction):
-            #                 lstm_cell[direction] = CoupledInputForgetGateLSTMCell(
-            #                     lstm_dim,
-            #                     use_peepholes=True,
-            #                     initializer=initializer,
-            #                     state_is_tuple=True
-            #                 )
-            #         outputs, final_states = tf.nn.bidirectional_dynamic_rnn(
-            #             lstm_cell["forward"],
-            #             lstm_cell["backward"],
-            #             lstm_inputs,
-            #             dtype=tf.float32,
-            #             sequence_length=lengths
-            #         )
-            #     return tf.concat(outputs, axis=2), final_states
 
             question_mask = tf.cast(
                 tf.logical_and(tf.cast(input_mask, tf.bool), tf.logical_not(tf.cast(segment_ids, tf.bool))), tf.float32)
@@ -498,7 +475,7 @@ class QATask(task.Task):
 
             intermediate_p = fusion_layer(fused_passage, self_aware_passage)
             with tf.variable_scope("contextual_layer_p", reuse=tf.AUTO_REUSE):
-                attention_mask = modeling.create_attention_mask_from_input_mask(passage_mask,input_mask)
+                attention_mask = modeling.create_attention_mask_from_input_mask(passage_mask, input_mask)
                 contextual_p_hidden, _ = modeling.transformer_model(intermediate_p,
                                                                     attention_mask=attention_mask,
                                                                     hidden_size=hidden_size,
@@ -510,7 +487,7 @@ class QATask(task.Task):
                                                                     initializer_range=0.02,
                                                                     do_return_all_layers=False)
             with tf.variable_scope("contextual_layer_q", reuse=tf.AUTO_REUSE):
-                attention_mask = modeling.create_attention_mask_from_input_mask(question_mask,input_mask)
+                attention_mask = modeling.create_attention_mask_from_input_mask(question_mask, input_mask)
                 contextual_q_hidden, _ = modeling.transformer_model(fused_question,
                                                                     attention_mask=attention_mask,
                                                                     hidden_size=hidden_size,

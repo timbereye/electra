@@ -464,7 +464,6 @@ class QATask(task.Task):
             #         )
             #     return tf.concat(outputs, axis=2), final_states
 
-            encoding_dim = 256
             question_mask = tf.cast(
                 tf.logical_and(tf.cast(input_mask, tf.bool), tf.logical_not(tf.cast(segment_ids, tf.bool))), tf.float32)
             passage_mask = tf.cast(segment_ids, tf.float32)
@@ -500,7 +499,7 @@ class QATask(task.Task):
             intermediate_p = fusion_layer(fused_passage, self_aware_passage)
             with tf.variable_scope("contextual_layer_p", reuse=tf.AUTO_REUSE):
                 contextual_p_hidden, _ = modeling.transformer_model(intermediate_p,
-                                                                    attention_mask=passage_mask,
+                                                                    attention_mask=None,
                                                                     hidden_size=hidden_size,
                                                                     num_hidden_layers=1,
                                                                     num_attention_heads=hidden_size // 64,
@@ -511,7 +510,7 @@ class QATask(task.Task):
                                                                     do_return_all_layers=False)
             with tf.variable_scope("contextual_layer_q", reuse=tf.AUTO_REUSE):
                 contextual_q_hidden, _ = modeling.transformer_model(fused_question,
-                                                                    attention_mask=question_mask,
+                                                                    attention_mask=None,
                                                                     hidden_size=hidden_size,
                                                                     num_hidden_layers=1,
                                                                     num_attention_heads=hidden_size // 64,
@@ -526,7 +525,7 @@ class QATask(task.Task):
                                2) * question_mask
             contextual_q = tf.einsum(" bl, ble -> be ", gamma, intermediate_q)
             project_w = tf.get_variable(name="project_w",
-                                        shape=[encoding_dim * 2],
+                                        shape=[hidden_size * 2],
                                         initializer=modeling.create_initializer(),
                                         trainable=True)
             final_hidden = tf.einsum(" bLe,e,be -> bLe", contextual_p, project_w, contextual_q, name="slqa_output")

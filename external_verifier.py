@@ -16,7 +16,7 @@ eval_file = './data/squad_eval2.json'
 ts = json.load(open(eval_file, 'r', encoding='utf-8'))
 best_th = ts["best_exact_thresh"]
 
-answer_null_odds_file = './data/squad_null_odds_answer_model5.json'
+answer_null_odds_file = './data/squad_null_odds_answer_model2.json'
 answer_null_odds = json.load(open(answer_null_odds_file, 'r', encoding='utf-8'))
 
 dev_file = './data/dev-v2.0.json'
@@ -40,14 +40,18 @@ qid_to_has_ans = make_qid_to_has_ans(json.load(open('./data/dev-v2.0.json', 'r',
 def eval_twice():
     tmp_file = './data/tmp_preds.json'
     tmp_eval_file = './data/tmp_eval.json'
+    tmp_null_odds_file = './data/tmp_null_odds.json'
     final_preds_file = "./data/final_squad_preds.json"
     xargs = f"python ./data/eval.py ./data/dev-v2.0.json {prediction_file} " \
             f"--na-prob-file {null_odds_file} --na-prob-thresh {best_th}"
     os.system(xargs)
     for k, v in null_odds.items():
+        # answer_null_odds[k] += v
         if v > best_th:
             prediction[k] = ""
     json.dump(prediction, open(tmp_file, 'w', encoding='utf-8'))
+    # json.dump(answer_null_odds, open(tmp_null_odds_file, 'w', encoding='utf-8'))
+
     xargs = f"python ./data/eval.py ./data/dev-v2.0.json {tmp_file} " \
             f"--na-prob-file {answer_null_odds_file} --out-file {tmp_eval_file}"
     os.system(xargs)

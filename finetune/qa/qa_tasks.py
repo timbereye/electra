@@ -463,6 +463,7 @@ class QATask(task.Task):
                     )
                 return tf.concat(outputs, axis=2), final_states
 
+            encoding_dim = 256
             question_mask = tf.cast(
                 tf.logical_and(tf.cast(input_mask, tf.bool), tf.logical_not(tf.cast(segment_ids, tf.bool))), tf.float32)
             passage_mask = tf.cast(segment_ids, tf.float32)
@@ -497,16 +498,16 @@ class QATask(task.Task):
 
             intermediate_p = fusion_layer(fused_passage, self_aware_passage)
             contextual_p = tf.einsum(" bLe, bL -> bLe ",
-                                     biLSTM_layer(intermediate_p, hidden_size, name="contextual_layer_p")[0],
+                                     biLSTM_layer(intermediate_p, encoding_dim, name="contextual_layer_p")[0],
                                      passage_mask)
             intermediate_q = tf.einsum(" ble, bl -> ble ",
-                                       biLSTM_layer(fused_question, hidden_size, name="contextual_layer_q")[0],
+                                       biLSTM_layer(fused_question, encoding_dim, name="contextual_layer_q")[0],
                                        question_mask)
             gamma = tf.squeeze(tf.nn.softmax(tf.layers.dense(intermediate_q, 1, use_bias=False), axis=1),
                                2) * question_mask
             contextual_q = tf.einsum(" bl, ble -> be ", gamma, intermediate_q)
             project_w = tf.get_variable(name="project_w",
-                                        shape=[hidden_size * 2],
+                                        shape=[encoding_dim * 2],
                                         initializer=modeling.create_initializer(),
                                         trainable=True)
             final_hidden = tf.einsum(" bLe,e,be -> bLe", contextual_p, project_w, contextual_q, name="slqa_output")

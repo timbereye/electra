@@ -16,7 +16,7 @@ eval_file = './data/squad_eval2.json'
 ts = json.load(open(eval_file, 'r', encoding='utf-8'))
 best_th = ts["best_exact_thresh"]
 
-answer_null_odds_file = './data/squad_null_odds_answer_model2.json'
+answer_null_odds_file = './data/squad_null_odds_answer_model5.json'
 answer_null_odds = json.load(open(answer_null_odds_file, 'r', encoding='utf-8'))
 
 dev_file = './data/dev-v2.0.json'

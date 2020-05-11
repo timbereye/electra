@@ -11,14 +11,15 @@ from data.eval import normalize_answer
 
 preds = json.load(open('squad_preds.json', 'r', encoding='utf-8'))
 null_odds = json.load(open('squad_null_odds.json', 'r', encoding='utf-8'))
-answer_null_odds = json.load(open('squad_null_odds_answer_model.json', 'r', encoding='utf-8'))
+answer_null_odds_file = 'squad_null_odds_answer_model1.json'
+answer_null_odds = json.load(open(answer_null_odds_file, 'r', encoding='utf-8'))
 best_th = json.load(open('squad_eval.json', 'r', encoding='utf-8'))["best_exact_thresh"]
 
 print("init eval:")
 xargs = f"python eval.py dev-v2.0.json squad_preds.json --na-prob-file squad_null_odds.json "
 os.system(xargs)
 
-answer_chooses = pickle.load(open('dev_f1_predict_results.pkl', 'rb'))
+answer_chooses = pickle.load(open('dev_f1_predict_results2.pkl', 'rb'))
 nbest = pickle.load(open('dev_all_nbest.pkl', 'rb'))
 
 tmp_file = 'tmp_preds'
@@ -58,7 +59,7 @@ for k, v in null_odds.items():
 
 json.dump(preds, open(tmp_file, 'w', encoding='utf-8'))
 xargs = f"python eval.py dev-v2.0.json {tmp_file} " \
-        f"--na-prob-file squad_null_odds_answer_model.json --out-file {tmp_eval_file}"
+        f"--na-prob-file {answer_null_odds_file} --out-file {tmp_eval_file}"
 os.system(xargs)
 new_sh = json.load(open(tmp_eval_file, 'r', encoding='utf-8'))["best_exact_thresh"]
 for k, v in answer_null_odds.items():

@@ -498,8 +498,9 @@ class QATask(task.Task):
 
             intermediate_p = fusion_layer(fused_passage, self_aware_passage)
             with tf.variable_scope("contextual_layer_p", reuse=tf.AUTO_REUSE):
+                attention_mask = modeling.create_attention_mask_from_input_mask(passage_mask,input_mask)
                 contextual_p_hidden, _ = modeling.transformer_model(intermediate_p,
-                                                                    attention_mask=None,
+                                                                    attention_mask=attention_mask,
                                                                     hidden_size=hidden_size,
                                                                     num_hidden_layers=1,
                                                                     num_attention_heads=hidden_size // 64,
@@ -509,8 +510,9 @@ class QATask(task.Task):
                                                                     initializer_range=0.02,
                                                                     do_return_all_layers=False)
             with tf.variable_scope("contextual_layer_q", reuse=tf.AUTO_REUSE):
+                attention_mask = modeling.create_attention_mask_from_input_mask(question_mask,input_mask)
                 contextual_q_hidden, _ = modeling.transformer_model(fused_question,
-                                                                    attention_mask=None,
+                                                                    attention_mask=attention_mask,
                                                                     hidden_size=hidden_size,
                                                                     num_hidden_layers=1,
                                                                     num_attention_heads=hidden_size // 64,

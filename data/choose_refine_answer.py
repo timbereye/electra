@@ -11,7 +11,7 @@ from data.eval import normalize_answer
 
 preds = json.load(open('squad_preds.json', 'r', encoding='utf-8'))
 null_odds = json.load(open('squad_null_odds.json', 'r', encoding='utf-8'))
-answer_null_odds_file = 'squad_null_odds_answer_model1.json'
+answer_null_odds_file = 'squad_null_odds_answer_model.json'
 answer_null_odds = json.load(open(answer_null_odds_file, 'r', encoding='utf-8'))
 best_th = json.load(open('squad_eval.json', 'r', encoding='utf-8'))["best_exact_thresh"]
 

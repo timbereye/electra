@@ -568,14 +568,14 @@ class QATask(task.Task):
                 labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
                 logits=answerable_logit)
             losses += answerable_loss * self.config.answerable_weight
-
-        pv_final_hidden = pv_bert_model.get_sequence_output()
-        pv_final_repr = pv_final_hidden[:, 0]
-        answerable_logit = tf.squeeze(tf.layers.dense(pv_final_repr, 1), -1)
-        pv_loss = tf.nn.sigmoid_cross_entropy_with_logits(
-            labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
-            logits=answerable_logit)
-        losses += pv_loss * 0.5
+        if pv_bert_model is not None:
+            pv_final_hidden = pv_bert_model.get_sequence_output()
+            pv_final_repr = pv_final_hidden[:, 0]
+            answerable_logit = tf.squeeze(tf.layers.dense(pv_final_repr, 1), -1)
+            pv_loss = tf.nn.sigmoid_cross_entropy_with_logits(
+                labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
+                logits=answerable_logit)
+            losses += pv_loss * 0.5
 
         return losses, dict(
             loss=losses,

@@ -551,7 +551,7 @@ class QATask(task.Task):
         start_loss = compute_loss(start_logits, start_positions)
         end_loss = compute_loss(end_logits, end_positions)
 
-        losses = (start_loss + end_loss) / 2.0
+        losses = (start_loss + end_loss) / 1.0
 
         answerable_logit = tf.zeros([batch_size])
         if self.config.answerable_classifier:
@@ -571,10 +571,17 @@ class QATask(task.Task):
         if pv_bert_model is not None:
             pv_final_hidden = pv_bert_model.get_sequence_output()
             pv_final_repr = pv_final_hidden[:, 0]
-            answerable_logit = tf.squeeze(tf.layers.dense(pv_final_repr, 1), -1)
+            if self.config.answerable_uses_start_logits:
+                start_p = tf.nn.softmax(start_logits)
+                start_feature = tf.reduce_sum(tf.expand_dims(start_p, -1) *
+                                              final_hidden, axis=1)
+                pv_final_repr = tf.concat([pv_final_repr, start_feature], -1)
+                pv_final_repr = tf.layers.dense(pv_final_repr, 512,
+                                                activation=modeling.gelu)
+            pv_logit = tf.squeeze(tf.layers.dense(pv_final_repr, 1), -1)
             pv_loss = tf.nn.sigmoid_cross_entropy_with_logits(
                 labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
-                logits=answerable_logit)
+                logits=pv_logit)
             losses += pv_loss * 0.5
 
         return losses, dict(

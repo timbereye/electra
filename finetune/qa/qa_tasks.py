@@ -308,7 +308,7 @@ class QATask(task.Task):
         # The -3 accounts for [CLS], [SEP] and [SEP]
         max_tokens_for_doc = self.config.max_seq_length - len(query_tokens) - 3
         if is_training:
-            max_tokens_for_doc -= len(answer_tokens)
+            max_tokens_for_doc -= len(answer_tokens) + 1
 
         # We can have documents that are longer than the maximum sequence length.
         # To deal with this we do a sliding window approach, where we take chunks

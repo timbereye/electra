@@ -275,7 +275,7 @@ class QATask(task.Task):
 
         answer_tokens = None
         if is_training:
-            answer_tokens = self._tokenizer.tokenize(example.plausible_answer_text)
+            answer_tokens = self._tokenizer.tokenize(example.orig_answer_text or example.plausible_answer_text)
 
             if len(answer_tokens) > self.config.max_answer_length:
                 answer_tokens = answer_tokens[0:self.config.max_answer_length]

@@ -195,7 +195,7 @@ class QATask(task.Task):
             orig_answer_text = None
             is_impossible = False
             plausible_answer_text = None
-            if split == "train":
+            if split:
                 if self.v2:
                     is_impossible = qa["is_impossible"]
                 if not is_impossible:

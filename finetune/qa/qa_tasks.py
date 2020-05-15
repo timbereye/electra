@@ -239,7 +239,7 @@ class QATask(task.Task):
                     orig_answer_text = ""
                     plausible_answer_text = qa["plausible_answers"][0]["text"]
 
-            assert orig_answer_text or plausible_answer_text
+            assert orig_answer_text or plausible_answer_text, f"{orig_answer_text}-{plausible_answer_text}"
 
             example = QAExample(
                 task_name=self.name,

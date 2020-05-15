@@ -237,9 +237,8 @@ class QATask(task.Task):
                     start_position = -1
                     end_position = -1
                     orig_answer_text = ""
-                    if not qa["plausible_answers"]:
-                        continue
-                    plausible_answer_text = qa["plausible_answers"][0]["text"]
+                    plausible_answer_text = qa["plausible_answers"][0]["text"] if qa[
+                        "plausible_answers"] else "it's no answer"
 
             assert orig_answer_text or plausible_answer_text, f"{orig_answer_text}-{plausible_answer_text}"
 

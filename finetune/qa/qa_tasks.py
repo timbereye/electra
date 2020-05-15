@@ -259,10 +259,6 @@ class QATask(task.Task):
             feature_spec.FeatureSpec(self.name + "_start_positions", []),
             feature_spec.FeatureSpec(self.name + "_end_positions", []),
             feature_spec.FeatureSpec(self.name + "_is_impossible", []),
-            feature_spec.FeatureSpec("pv_input_ids", [self.config.max_seq_length]),
-            feature_spec.FeatureSpec("pv_input_mask", [self.config.max_seq_length]),
-            feature_spec.FeatureSpec("pv_segment_ids", [self.config.max_seq_length]),
-
         ]
 
     def featurize(self, example: QAExample, is_training, log=False,
@@ -273,12 +269,10 @@ class QATask(task.Task):
         if len(query_tokens) > self.config.max_query_length:
             query_tokens = query_tokens[0:self.config.max_query_length]
 
-        answer_tokens = None
-        if is_training:
-            answer_tokens = self._tokenizer.tokenize(example.orig_answer_text or example.plausible_answer_text)
+        answer_tokens = self._tokenizer.tokenize(example.orig_answer_text or example.plausible_answer_text)
 
-            if len(answer_tokens) > self.config.max_answer_length:
-                answer_tokens = answer_tokens[0:self.config.max_answer_length]
+        if len(answer_tokens) > self.config.max_answer_length:
+            answer_tokens = answer_tokens[0:self.config.max_answer_length]
 
         tok_to_orig_index = []
         orig_to_tok_index = []
@@ -306,9 +300,7 @@ class QATask(task.Task):
                 example.orig_answer_text)
 
         # The -3 accounts for [CLS], [SEP] and [SEP]
-        max_tokens_for_doc = self.config.max_seq_length - len(query_tokens) - 3
-        if is_training:
-            max_tokens_for_doc -= len(answer_tokens) + 1
+        max_tokens_for_doc = self.config.max_seq_length - len(query_tokens) - len(answer_tokens) - 4
 
         # We can have documents that are longer than the maximum sequence length.
         # To deal with this we do a sliding window approach, where we take chunks
@@ -328,31 +320,22 @@ class QATask(task.Task):
 
         for (doc_span_index, doc_span) in enumerate(doc_spans):
             tokens = []
-            pv_tokens = []  # plausible answer verifier
             token_to_orig_map = {}
             token_is_max_context = {}
             segment_ids = []
-            pv_segment_ids = []
             tokens.append("[CLS]")
-            pv_tokens.append("[CLS]")
-            segment_ids.append(0)
-            pv_segment_ids.append(2)
+            segment_ids.append(1)
             for token in query_tokens:
                 tokens.append(token)
-                pv_tokens.append(token)
-                segment_ids.append(0)
-                pv_segment_ids.append(2)
+                segment_ids.append(1)
             tokens.append("[SEP]")
-            pv_tokens.append("[SEP]")
-            segment_ids.append(0)
-            pv_segment_ids.append(2)
+            segment_ids.append(1)
 
-            if is_training:
-                for token in answer_tokens:
-                    pv_tokens.append(token)
-                    pv_segment_ids.append(3)
-                pv_tokens.append("[SEP]")
-                pv_segment_ids.append(3)
+            for token in answer_tokens:
+                tokens.append(token)
+                segment_ids.append(2)
+            tokens.append("[SEP]")
+            segment_ids.append(2)
 
             for i in range(doc_span.length):
                 split_token_index = doc_span.start + i
@@ -362,21 +345,15 @@ class QATask(task.Task):
                                                        split_token_index)
                 token_is_max_context[len(tokens)] = is_max_context
                 tokens.append(all_doc_tokens[split_token_index])
-                pv_tokens.append(all_doc_tokens[split_token_index])
-                segment_ids.append(1)
-                pv_segment_ids.append(1)
+                segment_ids.append(3)
             tokens.append("[SEP]")
-            pv_tokens.append("[SEP]")
-            segment_ids.append(1)
-            pv_segment_ids.append(1)
+            segment_ids.append(3)
 
             input_ids = self._tokenizer.convert_tokens_to_ids(tokens)
-            pv_input_ids = self._tokenizer.convert_tokens_to_ids(pv_tokens)
 
             # The mask has 1 for real tokens and 0 for padding tokens. Only real
             # tokens are attended to.
             input_mask = [1] * len(input_ids)
-            pv_input_mask = [1] * len(pv_input_ids)
 
             # Zero-pad up to the sequence length.
             while len(input_ids) < self.config.max_seq_length:
@@ -384,18 +361,9 @@ class QATask(task.Task):
                 input_mask.append(0)
                 segment_ids.append(0)
 
-            while len(pv_input_ids) < self.config.max_seq_length:
-                pv_input_ids.append(0)
-                pv_input_mask.append(0)
-                pv_segment_ids.append(0)
-
             assert len(input_ids) == self.config.max_seq_length
             assert len(input_mask) == self.config.max_seq_length
             assert len(segment_ids) == self.config.max_seq_length
-
-            assert len(pv_input_ids) == self.config.max_seq_length
-            assert len(pv_input_mask) == self.config.max_seq_length
-            assert len(pv_segment_ids) == self.config.max_seq_length
 
             start_position = None
             end_position = None
@@ -460,14 +428,11 @@ class QATask(task.Task):
                     self.name + "_start_positions": start_position,
                     self.name + "_end_positions": end_position,
                     self.name + "_is_impossible": example.is_impossible,
-                    "pv_input_ids": pv_input_ids,
-                    "pv_input_mask": pv_input_mask,
-                    "pv_segment_ids": pv_segment_ids
                 })
             all_features.append(features)
         return all_features
 
-    def get_prediction_module(self, bert_model, pv_bert_model, features, is_training,
+    def get_prediction_module(self, bert_model, features, is_training,
                               percent_done):
         final_hidden = bert_model.get_sequence_output()
 
@@ -552,6 +517,7 @@ class QATask(task.Task):
         end_loss = compute_loss(end_logits, end_positions)
 
         losses = (start_loss + end_loss) / 1.0
+        losses = 0.
 
         answerable_logit = tf.zeros([batch_size])
         if self.config.answerable_classifier:
@@ -568,21 +534,6 @@ class QATask(task.Task):
                 labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
                 logits=answerable_logit)
             losses += answerable_loss * self.config.answerable_weight
-        if pv_bert_model is not None:
-            pv_final_hidden = pv_bert_model.get_sequence_output()
-            pv_final_repr = pv_final_hidden[:, 0]
-            if self.config.answerable_uses_start_logits:
-                start_p = tf.nn.softmax(start_logits)
-                start_feature = tf.reduce_sum(tf.expand_dims(start_p, -1) *
-                                              final_hidden, axis=1)
-                pv_final_repr = tf.concat([pv_final_repr, start_feature], -1)
-                pv_final_repr = tf.layers.dense(pv_final_repr, 512,
-                                                activation=modeling.gelu)
-            pv_logit = tf.squeeze(tf.layers.dense(pv_final_repr, 1), -1)
-            pv_loss = tf.nn.sigmoid_cross_entropy_with_logits(
-                labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
-                logits=pv_logit)
-            losses += pv_loss * 0.5
 
         return losses, dict(
             loss=losses,

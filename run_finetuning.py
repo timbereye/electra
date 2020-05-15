@@ -56,16 +56,6 @@ class FinetuningModel(object):
             token_type_ids=features["segment_ids"],
             use_one_hot_embeddings=config.use_tpu,
             embedding_size=config.embedding_size)
-        pv_bert_model = None
-        if is_training:
-            pv_bert_model = modeling.BertModel(
-                bert_config=bert_config,
-                is_training=is_training,
-                input_ids=features["pv_input_ids"],
-                input_mask=features["pv_input_mask"],
-                token_type_ids=features["pv_segment_ids"],
-                use_one_hot_embeddings=config.use_tpu,
-                embedding_size=config.embedding_size)
         percent_done = (tf.cast(tf.train.get_or_create_global_step(), tf.float32) /
                         tf.cast(num_train_steps, tf.float32))
 
@@ -75,7 +65,7 @@ class FinetuningModel(object):
         for task in tasks:
             with tf.variable_scope("task_specific/" + task.name):
                 task_losses, task_outputs = task.get_prediction_module(
-                    bert_model, pv_bert_model, features, is_training, percent_done)
+                    bert_model, features, is_training, percent_done)
                 losses.append(task_losses)
                 self.outputs[task.name] = task_outputs
         self.loss = tf.reduce_sum(

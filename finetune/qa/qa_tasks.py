@@ -506,7 +506,7 @@ class QATask(task.Task):
         if self.config.answerable_classifier:
             final_repr = final_hidden[:, 0]
             if self.config.answerable_uses_start_logits:
-                start_p = tf.nn.softmax(start_logits)
+                start_p = tf.nn.softmax(end_logits)
                 start_feature = tf.reduce_sum(tf.expand_dims(start_p, -1) *
                                               final_hidden, axis=1)
 

@@ -87,7 +87,7 @@ class FinetuningConfig(object):
         self.answerable_weight = 0.5  # weight for answerability loss
         self.joint_prediction = True  # jointly predict the start and end positions
         # of the answer span
-        self.beam_size = 20  # beam size when doing joint predictions
+        self.beam_size = 5  # beam size when doing joint predictions
         self.qa_na_threshold = -2.75  # threshold for "no answer" when writing SQuAD
         # 2.0 test outputs
 

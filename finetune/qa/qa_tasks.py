@@ -38,6 +38,7 @@ from functools import reduce
 
 # dependence parser
 import stanza
+
 nlp = stanza.Pipeline(lang='en', processors='tokenize,pos,lemma,depparse')
 
 
@@ -441,6 +442,7 @@ class QATask(task.Task):
     print(*[f'id: {word.id}\tword: {word.text}\thead id: {word.head}\thead: {sent.words[word.head-1].text
     if word.head > 0 else "root"}\tdeprel: {word.deprel}' for sent in doc.sentences for word in sent.words], sep='\n')
     """
+
     # 将dependence matrix作为attention mask引入模型，这里我们只考虑context
     def featurize(self, example: QAExample, is_training, log=False,
                   for_eval=False):
@@ -601,8 +603,8 @@ class QATask(task.Task):
             dep_mask_x = []
             dep_mask_y = []
             shift = len(query_tokens) + 2
-            piece_mask_matrix = all_doc_tokens_dep_mask[doc_span.start:doc_span.start+doc_span.length,
-                                doc_span.start:doc_span.start+doc_span.length]
+            piece_mask_matrix = all_doc_tokens_dep_mask[doc_span.start:doc_span.start + doc_span.length,
+                                doc_span.start:doc_span.start + doc_span.length]
             shape = piece_mask_matrix.shape[0]
             for i in range(shape):
                 for j in range(shape):
@@ -653,45 +655,6 @@ class QATask(task.Task):
     def get_prediction_module(self, bert_model, features, is_training,
                               percent_done):
         final_hidden = bert_model.get_sequence_output()
-
-        # sgnet
-        # dep_mask_x = features[self.name + "_dep_mask_x"]
-        # dep_mask_y = features[self.name + "_dep_mask_y"]
-        # dep_mask_len = features[self.name + "_dep_mask_len"]
-        #
-        # def fn(xyz):
-        #     x = xyz[0]
-        #     y = xyz[1]
-        #     length = xyz[2]
-        #     x = x[:length]
-        #     y = y[:length]
-        #     st = tf.SparseTensor(indices=tf.cast(tf.transpose([x, y]), tf.int64),
-        #                          values=tf.ones_like(x, dtype=tf.float32),
-        #                          dense_shape=[self.config.max_seq_length, self.config.max_seq_length])
-        #     dt = tf.sparse_tensor_to_dense(st)
-        #     return dt
-        #
-        # dep_mask = tf.map_fn(fn, (dep_mask_x, dep_mask_y, dep_mask_len), dtype=tf.float32)
-        dep_mask = features["squad_dep_mask"]
-        dep_mask = tf.reshape(dep_mask, [-1, self.config.max_seq_length, self.config.max_seq_length])
-        with tf.variable_scope("dependence"):
-            bert_config = bert_model.config
-            dep_att_output, _ = modeling.transformer_model(
-                input_tensor=final_hidden,
-                attention_mask=dep_mask,
-                hidden_size=bert_config.hidden_size,
-                num_hidden_layers=1,
-                num_attention_heads=bert_config.num_attention_heads,
-                intermediate_size=bert_config.intermediate_size,
-                intermediate_act_fn=modeling.get_activation(bert_config.hidden_act),
-                hidden_dropout_prob=bert_config.hidden_dropout_prob,
-                attention_probs_dropout_prob=bert_config.attention_probs_dropout_prob,
-                initializer_range=bert_config.initializer_range,
-                do_return_all_layers=False)
-        weight = tf.get_variable(name="weight", dtype=tf.float32, initializer=tf.zeros_initializer(),
-                                 shape=(), trainable=True)
-        weight = tf.sigmoid(weight)
-        final_hidden = weight * final_hidden + (1 - weight) * dep_att_output
 
         final_hidden_shape = modeling.get_shape_list(final_hidden, expected_rank=3)
         batch_size = final_hidden_shape[0]
@@ -776,58 +739,18 @@ class QATask(task.Task):
         losses = (start_loss + end_loss) / 2.0
 
         # plausible answer loss
-        def compute_loss_for_plau(start_logits, end_logits, start_positions, end_positions, start_positions_true,
-                                  alpha=1.0, beta=1.0):
-            start_probs = tf.nn.softmax(start_logits)
-            end_probs = tf.nn.softmax(end_logits)
-            log_neg_start_probs = tf.log(tf.clip_by_value(1 - start_probs, 1e-30, 1))
-            log_neg_end_probs = tf.log(tf.clip_by_value(1 - end_probs, 1e-30, 1))
-            start_positions_mask = tf.cast(tf.sequence_mask(start_positions, maxlen=seq_length), tf.float32)
-            end_positions_mask = tf.cast(tf.sequence_mask(end_positions + 1, maxlen=seq_length), tf.float32)
-            positions_mask = end_positions_mask - start_positions_mask
-            one_hot_positions = tf.one_hot(
-                start_positions_true, depth=seq_length, dtype=tf.float32)
-            positions_mask = positions_mask * (1 - one_hot_positions)  # 忽略切出来的无答案
-
-            # mask_0 = tf.zeros([batch_size, 1])
-            # mask_1 = tf.ones([batch_size, seq_length - 1])
-            # zero_mask = tf.concat([mask_0, mask_1], axis=1)
-            # positions_mask = positions_mask * zero_mask
-            loss1 = - tf.reduce_sum(positions_mask * log_neg_start_probs, axis=-1)
-            loss1 = tf.reduce_mean(loss1)
-            loss2 = - tf.reduce_sum(positions_mask * log_neg_end_probs, axis=-1)
-            loss2 = tf.reduce_mean(loss2)
-            return (loss1 * alpha + loss2 * beta) * 0.5
-
-        # plau_loss = compute_loss_for_plau(start_logits, end_logits,
-        #                                   features[self.name + "_plau_answer_start"],
-        #                                   features[self.name + "_plau_answer_end"],
-        #                                   features[self.name + "_start_positions"], 1.0, 1.0)
-        # losses += plau_loss
-
-        # plausible answer loss
-        # def compute_loss_for_plau(start_logits, end_logits, start_positions, end_positions, alpha=1.0):
-        #   start_probs = tf.nn.softmax(start_logits)
-        #   end_probs = tf.nn.softmax(end_logits)
-        #   log_neg_start_probs = tf.log(tf.clip_by_value(1 - start_probs, 1e-30, 1))
-        #   log_neg_end_probs = tf.log(tf.clip_by_value(1 - end_probs, 1e-30, 1))
-        #   start_positions_mask = tf.cast(tf.sequence_mask(start_positions, maxlen=seq_length), tf.float32)
-        #   end_positions_mask = tf.cast(tf.sequence_mask(end_positions + 1, maxlen=seq_length), tf.float32)
-        #   positions_mask = end_positions_mask - start_positions_mask
-        #   mask_0 = tf.zeros([batch_size, 1])
-        #   mask_1 = tf.ones([batch_size, seq_length - 1])
-        #   zero_mask = tf.concat([mask_0, mask_1], axis=1)
-        #   positions_mask = positions_mask * zero_mask
-        #   loss1 = - tf.reduce_sum(positions_mask * log_neg_start_probs, axis=-1)
-        #   loss1 = tf.reduce_mean(loss1)
-        #   loss2 = - tf.reduce_sum(positions_mask * log_neg_end_probs, axis=-1)
-        #   loss2 = tf.reduce_mean(loss2)
-        #   return (loss1 + loss2) * 0.5 * alpha
-        #
-        # plau_loss = compute_loss_for_plau(start_logits, end_logits,
-        #                                   features[self.name + "_plau_answer_start"],
-        #                                   features[self.name + "_plau_answer_end"], 4.0)
-        # losses += plau_loss
+        plau_logits = tf.layers.dense(final_hidden, 2)
+        plau_logits = tf.reshape(plau_logits, [batch_size, seq_length, 2])
+        plau_logits = tf.transpose(plau_logits, [2, 0, 1])
+        unstacked_logits = tf.unstack(plau_logits, axis=0)
+        (plau_start_logits, plau_end_logits) = (unstacked_logits[0], unstacked_logits[1])
+        plau_start_logits += 1000.0 * (answer_mask - 1)
+        plau_end_logits += 1000.0 * (answer_mask - 1)
+        plau_start_positions = features[self.name + "_plau_answer_start"]
+        plau_end_positions = features[self.name + "_plau_answer_end"]
+        plau_start_loss = compute_loss(plau_start_logits, plau_start_positions)
+        plau_end_loss = compute_loss(plau_end_logits, plau_end_positions)
+        losses += (plau_start_loss + plau_end_loss) / 2.0
 
         answerable_logit = tf.zeros([batch_size])
         if self.config.answerable_classifier:

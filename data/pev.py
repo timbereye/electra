@@ -45,7 +45,7 @@ for qid in preds:
 merge_null_odds = deepcopy(null_odds)
 
 for k, v in merge_null_odds.items():
-    merge_null_odds[k] += pv_null_odds[k]
+    merge_null_odds[k] = null_odds[k] + pv_null_odds[k]
 json.dump(merge_null_odds, open(tmp_null_odds_file, 'w', encoding='utf-8'))
 
 xargs = f"python eval.py dev-v2.0.json {preds_file} --na-prob-file {tmp_null_odds_file} --out-file {tmp_eval_file}"

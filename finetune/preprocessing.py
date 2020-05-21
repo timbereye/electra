@@ -24,6 +24,7 @@ import os
 import random
 import numpy as np
 import tensorflow.compat.v1 as tf
+
 import configure_finetuning
 from finetune import feature_spec
 from util import utils
@@ -42,14 +43,6 @@ class Preprocessor(object):
             self._feature_specs += task.get_feature_specs()
         self._name_to_feature_config = {
             spec.name: spec.get_parsing_spec()
-            for spec in self._feature_specs
-        }
-        self._name_to_is_var_len = {
-            spec.name: spec.is_var_len
-            for spec in self._feature_specs
-        }
-        self._padded_shapes = {
-            spec.name: spec.shape
             for spec in self._feature_specs
         }
         assert len(self._name_to_feature_config) == len(self._feature_specs)
@@ -159,15 +152,11 @@ class Preprocessor(object):
             if is_training:
                 d = d.repeat()
                 d = d.shuffle(buffer_size=100)
-            # return d.map(self._decode_tfrecord) \
-            #     .padded_batch(params["batch_size"], padded_shapes=self._padded_shapes) \
-            #     .prefetch(None)
-            d = d.apply(
+            return d.apply(
                 tf.data.experimental.map_and_batch(
                     self._decode_tfrecord,
                     batch_size=params["batch_size"],
                     drop_remainder=True))
-            return d
 
         return input_fn
 
@@ -177,33 +166,8 @@ class Preprocessor(object):
         # tf.Example only supports tf.int64, but the TPU only supports tf.int32.
         # So cast all int64 to int32.
         for name, tensor in example.items():
-            # cast sparse tensor to dense for var len feature
-            # if self._name_to_is_var_len[name]:
-            #     tensor = tf.sparse_tensor_to_dense(tensor)
             if tensor.dtype == tf.int64:
                 example[name] = tf.cast(tensor, tf.int32)
             else:
                 example[name] = tensor
-        # if "squad_dep_mask_len" in example:
-        #     mask_shape = tf.parallel_stack([example["squad_dep_mask_len"]])
-        #     example["squad_dep_mask_x"] = tf.reshape(example["squad_dep_mask_x"], mask_shape)
-        #     example["squad_dep_mask_y"] = tf.reshape(example["squad_dep_mask_y"], mask_shape)
-        # print(example)
-
-        def fn(xyz):
-            x = xyz[0]
-            y = xyz[1]
-            length = xyz[2]
-            x = x[:length]
-            y = y[:length]
-            st = tf.SparseTensor(indices=tf.cast(tf.transpose([x, y]), tf.int64),
-                                 values=tf.ones_like(x, dtype=tf.float32),
-                                 dense_shape=[self._config.max_seq_length, self._config.max_seq_length])
-            dt = tf.sparse_tensor_to_dense(st)
-            return dt
-
-        if "squad_dep_mask_len" in example:
-            example["squad_dep_mask"] = fn([example["squad_dep_mask_x"], example["squad_dep_mask_y"],
-                                            example["squad_dep_mask_len"]])
-
         return example

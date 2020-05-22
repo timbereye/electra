@@ -6,9 +6,9 @@ import numpy as np
 from functional import seq
 
 
-preds_file = 'squad_preds.json'
-null_odds_file = 'squad_null_odds.json'
-eval_file = 'squad_eval.json'
+preds_file = 'atrlp8876_squad_preds.json'
+null_odds_file = 'atrlp8876_squad_null_odds.json'
+eval_file = 'atrlp8876_squad_eval.json'
 pv_null_odds_file = 'pv_squad_null_odds.json'
 answer_candidates_score_file = 'dev_f1_predict_results2.pkl'
 dev_all_nbest_file = 'dev_all_nbest.pkl'

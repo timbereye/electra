@@ -511,6 +511,7 @@ class QATask(task.Task):
         answer_mask += tf.one_hot(0, seq_length)
 
         start_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
+        plau_start_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
 
         start_top_log_probs = tf.zeros([batch_size, self.config.beam_size])
         start_top_index = tf.zeros([batch_size, self.config.beam_size], tf.int32)
@@ -520,54 +521,91 @@ class QATask(task.Task):
                                   self.config.beam_size], tf.int32)
         if self.config.joint_prediction:
             start_logits += 1000.0 * (answer_mask - 1)
+            plau_start_logits += 1000.0 * (answer_mask - 1)
             start_log_probs = tf.nn.log_softmax(start_logits)
+            plau_start_log_probs = tf.nn.log_softmax(plau_start_logits)
             start_top_log_probs, start_top_index = tf.nn.top_k(
                 start_log_probs, k=self.config.beam_size)
+            plau_start_top_log_probs, plau_start_top_index = tf.nn.top_k(
+                plau_start_log_probs, k=self.config.beam_size)
 
             if not is_training:
                 # batch, beam, length, hidden
                 end_features = tf.tile(tf.expand_dims(final_hidden, 1),
                                        [1, self.config.beam_size, 1, 1])
+                plau_end_features = tf.tile(tf.expand_dims(final_hidden, 1),
+                                            [1, self.config.beam_size, 1, 1])
                 # batch, beam, length
                 start_index = tf.one_hot(start_top_index,
                                          depth=seq_length, axis=-1, dtype=tf.float32)
+                plau_start_index = tf.one_hot(plau_start_top_index,
+                                              depth=seq_length, axis=-1, dtype=tf.float32)
                 # batch, beam, hidden
                 start_features = tf.reduce_sum(
                     tf.expand_dims(final_hidden, 1) *
                     tf.expand_dims(start_index, -1), axis=-2)
+                plau_start_features = tf.reduce_sum(
+                    tf.expand_dims(final_hidden, 1) *
+                    tf.expand_dims(plau_start_index, -1), axis=-2)
                 # batch, beam, length, hidden
                 start_features = tf.tile(tf.expand_dims(start_features, 2),
                                          [1, 1, seq_length, 1])
+                plau_start_features = tf.tile(tf.expand_dims(plau_start_features, 2),
+                                              [1, 1, seq_length, 1])
             else:
                 start_index = tf.one_hot(
                     features[self.name + "_start_positions"], depth=seq_length,
                     axis=-1, dtype=tf.float32)
+                plau_start_index = tf.one_hot(
+                    features[self.name + "_plau_answer_start"], depth=seq_length,
+                    axis=-1, dtype=tf.float32)
                 start_features = tf.reduce_sum(tf.expand_dims(start_index, -1) *
                                                final_hidden, axis=1)
+                plau_start_features = tf.reduce_sum(tf.expand_dims(plau_start_index, -1) *
+                                                    final_hidden, axis=1)
                 start_features = tf.tile(tf.expand_dims(start_features, 1),
                                          [1, seq_length, 1])
+                plau_start_features = tf.tile(tf.expand_dims(plau_start_features, 1),
+                                              [1, seq_length, 1])
                 end_features = final_hidden
+                plau_end_features = final_hidden
 
             final_repr = tf.concat([start_features, end_features], -1)
+            plau_final_repr = tf.concat([plau_start_features, plau_end_features], -1)
             final_repr = tf.layers.dense(final_repr, 512, activation=modeling.gelu,
                                          name="qa_hidden")
+            plau_final_repr = tf.layers.dense(plau_final_repr, 512, activation=modeling.gelu,
+                                              name="plau_qa_hidden")
             # batch, beam, length (batch, length when training)
             end_logits = tf.squeeze(tf.layers.dense(final_repr, 1), -1,
                                     name="qa_logits")
+            plau_end_logits = tf.squeeze(tf.layers.dense(plau_final_repr, 1), -1,
+                                         name="plau_qa_logits")
             if is_training:
                 end_logits += 1000.0 * (answer_mask - 1)
+                plau_end_logits += 1000.0 * (answer_mask - 1)
             else:
                 end_logits += tf.expand_dims(1000.0 * (answer_mask - 1), 1)
+                plau_end_logits += tf.expand_dims(1000.0 * (answer_mask - 1), 1)
 
             if not is_training:
                 end_log_probs = tf.nn.log_softmax(end_logits)
+                plau_end_log_probs = tf.nn.log_softmax(plau_end_logits)
+
                 end_top_log_probs, end_top_index = tf.nn.top_k(
                     end_log_probs, k=self.config.beam_size)
+                plau_end_top_log_probs, plau_end_top_index = tf.nn.top_k(
+                    plau_end_log_probs, k=self.config.beam_size)
                 end_logits = tf.zeros([batch_size, seq_length])
+                plau_end_logits = tf.zeros([batch_size, seq_length])
+
         else:
             end_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
+            plau_end_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
             start_logits += 1000.0 * (answer_mask - 1)
+            plau_start_logits += 1000.0 * (answer_mask - 1)
             end_logits += 1000.0 * (answer_mask - 1)
+            plau_end_logits += 1000.0 * (answer_mask - 1)
 
         def compute_loss(logits, positions):
             one_hot_positions = tf.one_hot(
@@ -585,17 +623,8 @@ class QATask(task.Task):
         losses = (start_loss + end_loss) / 2.0
 
         # plausible answer loss
-        plau_logits = tf.layers.dense(final_hidden, 2)
-        plau_logits = tf.reshape(plau_logits, [batch_size, seq_length, 2])
-        plau_logits = tf.transpose(plau_logits, [2, 0, 1])
-        unstacked_logits = tf.unstack(plau_logits, axis=0)
-        (plau_start_logits, plau_end_logits) = (unstacked_logits[0], unstacked_logits[1])
-        plau_start_logits += 1000.0 * (answer_mask - 1)
-        plau_end_logits += 1000.0 * (answer_mask - 1)
-        plau_start_positions = features[self.name + "_plau_answer_start"]
-        plau_end_positions = features[self.name + "_plau_answer_end"]
-        plau_start_loss = compute_loss(plau_start_logits, plau_start_positions)
-        plau_end_loss = compute_loss(plau_end_logits, plau_end_positions)
+        plau_start_loss = compute_loss(plau_start_logits, features[self.name + "_plau_answer_start"])
+        plau_end_loss = compute_loss(plau_end_logits, features[self.name + "_plau_answer_end"])
         losses += (plau_start_loss + plau_end_loss) / 2.0
 
         answerable_logit = tf.zeros([batch_size])
@@ -619,7 +648,7 @@ class QATask(task.Task):
         loss_rl = rl_loss(start_logits, end_logits, start_positions, end_positions, sample_num=4)
         # theta_ce = tf.get_variable('theta_ce', dtype=tf.float32, initializer=lambda: tf.constant(1.))
         # theta_rl = tf.get_variable('theta_rl', dtype=tf.float32, initializer=lambda: tf.constant(1.))
-        losses += 0.1 * loss_rl
+        losses += 0.5 * loss_rl
 
         return losses, dict(
             loss=losses,

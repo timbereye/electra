@@ -610,6 +610,9 @@ class SQuADTask(QATask):
                 examples_gp_by_tit[choice_key].remove(choice_example)
                 examples.append(choice_example)
 
+            # 验证已选完
+            assert sum(map(lambda x: len(examples_gp_by_tit[x]), list(examples_gp_by_tit.values()))) == 0
+
         self._examples[split] = examples
         utils.log("{:} examples created, {:} failures".format(
             len(examples), example_failures[0]))

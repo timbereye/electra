@@ -593,21 +593,22 @@ class SQuADTask(QATask):
             title = entry['title']
             for paragraph in entry["paragraphs"]:
                 self._add_examples(examples, example_failures, paragraph, split, title)
-        from itertools import groupby
-        import random
-        examples_len = len(examples)
-        examples_gp_by_tit = {}
-        for tit, g in groupby(examples, key=lambda x: x.title):
-            examples_gp_by_tit[tit] = list(g)
-        examples = []
-        all_tits = list(examples_gp_by_tit.keys())
-        while len(examples) < examples_len:
-            choice_key = random.choice(all_tits)
-            while len(examples_gp_by_tit[choice_key]) == 0:
+        if split == 'train':
+            from itertools import groupby
+            import random
+            examples_len = len(examples)
+            examples_gp_by_tit = {}
+            for tit, g in groupby(examples, key=lambda x: x.title):
+                examples_gp_by_tit[tit] = list(g)
+            examples = []
+            all_tits = list(examples_gp_by_tit.keys())
+            while len(examples) < examples_len:
                 choice_key = random.choice(all_tits)
-            choice_example = random.choice(examples_gp_by_tit[choice_key])
-            examples_gp_by_tit[choice_key].remove(choice_example)
-            examples.append(choice_example)
+                while len(examples_gp_by_tit[choice_key]) == 0:
+                    choice_key = random.choice(all_tits)
+                choice_example = random.choice(examples_gp_by_tit[choice_key])
+                examples_gp_by_tit[choice_key].remove(choice_example)
+                examples.append(choice_example)
 
         self._examples[split] = examples
         utils.log("{:} examples created, {:} failures".format(

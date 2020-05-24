@@ -48,7 +48,8 @@ class QAExample(task.Example):
                  orig_answer_text=None,
                  start_position=None,
                  end_position=None,
-                 is_impossible=False):
+                 is_impossible=False,
+                 title=None):
         super(QAExample, self).__init__(task_name)
         self.eid = eid
         self.qas_id = qas_id
@@ -59,6 +60,7 @@ class QAExample(task.Example):
         self.start_position = start_position
         self.end_position = end_position
         self.is_impossible = is_impossible
+        self.title = title
 
     def __str__(self):
         return self.__repr__()
@@ -168,7 +170,7 @@ class QATask(task.Task):
         self._examples = {}
         self.v2 = v2
 
-    def _add_examples(self, examples, example_failures, paragraph, split):
+    def _add_examples(self, examples, example_failures, paragraph, split, title):
         paragraph_text = paragraph["context"]
         doc_tokens = []
         char_to_word_offset = []
@@ -245,7 +247,8 @@ class QATask(task.Task):
                 orig_answer_text=orig_answer_text,
                 start_position=start_position,
                 end_position=end_position,
-                is_impossible=is_impossible)
+                is_impossible=is_impossible,
+                title=title)
             examples.append(example)
 
     def get_feature_specs(self):
@@ -587,8 +590,25 @@ class SQuADTask(QATask):
         examples = []
         example_failures = [0]
         for entry in input_data:
+            title = entry['title']
             for paragraph in entry["paragraphs"]:
-                self._add_examples(examples, example_failures, paragraph, split)
+                self._add_examples(examples, example_failures, paragraph, split, title)
+        from itertools import groupby
+        import random
+        examples_len = len(examples)
+        examples_gp_by_tit = {}
+        for tit, g in groupby(examples, key=lambda x: x.title):
+            examples_gp_by_tit[tit] = list(g)
+        examples = []
+        all_tits = list(examples_gp_by_tit.keys())
+        while len(examples) < examples_len:
+            choice_key = random.choice(all_tits)
+            while len(examples_gp_by_tit[choice_key]) == 0:
+                choice_key = random.choice(all_tits)
+            choice_example = random.choice(examples_gp_by_tit[choice_key])
+            examples_gp_by_tit[choice_key].remove(choice_example)
+            examples.append(choice_example)
+
         self._examples[split] = examples
         utils.log("{:} examples created, {:} failures".format(
             len(examples), example_failures[0]))

@@ -618,6 +618,7 @@ class QATask(task.Task):
 
         loss_rl = rl_loss(start_logits, end_logits, start_positions, end_positions, sample_num=4)
         theta_ce = tf.get_variable('theta_ce', dtype=tf.float32, initializer=lambda: tf.constant(1.))
+        # sigma_1 = tf.get_variable('theta_ce', shape=() )
         theta_rl = tf.get_variable('theta_rl', dtype=tf.float32, initializer=lambda: tf.constant(1.))
         losses = (1 / (2 * theta_ce * theta_ce)) * losses + (1 / (2 * theta_rl * theta_rl)) * \
                  loss_rl + tf.log(theta_ce * theta_ce) + tf.log(theta_rl * theta_rl)

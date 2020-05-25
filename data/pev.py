@@ -9,7 +9,7 @@ from functional import seq
 preds_file = 'squad_preds.json'
 null_odds_file = 'squad_null_odds.json'
 eval_file = 'squad_eval.json'
-pv_null_odds_file = 'pv_squad_null_odds5.json'
+pv_null_odds_file = 'atpv_squad_null_odds10.json'
 answer_candidates_score_file = 'dev_f1_predict_results2.pkl'
 dev_all_nbest_file = 'atrlp8876_dev_all_nbest.pkl'
 tmp_eval_file = 'tmp_eval.json'

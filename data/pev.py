@@ -6,10 +6,10 @@ import numpy as np
 from functional import seq
 
 
-preds_file = 'atrlp8876_squad_preds.json'
-null_odds_file = 'atrlp8876_squad_null_odds.json'
-eval_file = 'atrlp8876_squad_eval.json'
-pv_null_odds_file = 'atrlp8876_pv_squad_null_odds.json'
+preds_file = 'squad_preds.json'
+null_odds_file = 'squad_null_odds.json'
+eval_file = 'squad_eval.json'
+pv_null_odds_file = 'pv_squad_null_odds5.json'
 answer_candidates_score_file = 'dev_f1_predict_results2.pkl'
 dev_all_nbest_file = 'atrlp8876_dev_all_nbest.pkl'
 tmp_eval_file = 'tmp_eval.json'
@@ -20,8 +20,8 @@ preds = json.load(open(preds_file, 'r', encoding='utf-8'))
 null_odds = json.load(open(null_odds_file, 'r', encoding='utf-8'))
 best_th = json.load(open(eval_file, 'r', encoding='utf-8'))["best_exact_thresh"]
 pv_null_odds = json.load(open(pv_null_odds_file, 'r', encoding='utf-8'))
-answer_candidates_score = pickle.load(open(answer_candidates_score_file, 'rb'))
-dev_all_nbest = pickle.load(open(dev_all_nbest_file, 'rb'))
+# answer_candidates_score = pickle.load(open(answer_candidates_score_file, 'rb'))
+# dev_all_nbest = pickle.load(open(dev_all_nbest_file, 'rb'))
 
 # length = 5
 # believe_f1_th = 0.7

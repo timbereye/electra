@@ -45,4 +45,4 @@ def generator_data(split='train'):
     json.dump(data, open(f'{split}.json', 'w', encoding='utf-8'))
 
 
-generator_data('train')
+generator_data('dev')

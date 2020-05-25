@@ -1,7 +1,7 @@
 import json
 
 dev = json.load(open('dev-v2.0.json'))
-preds = json.load(open('atrlp8876_squad_preds.json'))
+preds = json.load(open('squad_preds.json'))
 
 for article in dev['data']:
     for paragraph in article["paragraphs"]:

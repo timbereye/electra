@@ -15,7 +15,7 @@ def main():
     shutil.copy(args.eval_file, os.path.join(args.data_dir, 'finetuning_data/squad/dev.json'))
 
     command1 = """
-    python3 run_finetuning_atrlp.py   --data-dir=%s --model-name=atrlp8876_   --hparams '{"model_size": "large", "task_names": ["squad"], "use_tpu": false, "eval_batch_size": 32, "predict_batch_size": 32, "max_seq_length": 512, "use_tfrecords_if_existing": false, "num_trials": 1, "do_train": false, "do_eval": true}'
+    CUDA_VISIBLE_DEVICES=-1 python3 run_finetuning_atrlp.py   --data-dir=%s --model-name=atrlp8876_   --hparams '{"model_size": "large", "task_names": ["squad"], "use_tpu": false, "eval_batch_size": 32, "predict_batch_size": 32, "max_seq_length": 512, "use_tfrecords_if_existing": false, "num_trials": 1, "do_train": false, "do_eval": true}'
 """ % args.data_dir
 
     os.system(command1)
@@ -42,15 +42,17 @@ def main():
     shutil.copy('./data/pv_dev.json', os.path.join(args.data_dir, 'finetuning_data/squad/dev.json'))
 
     command4 = """
-    python3 run_finetuning_pv.py   --data-dir=%s --model-name=8876pv_model_   --hparams '{"model_size": "large", "task_names": ["squad"], "use_tpu": false, "eval_batch_size": 32, "predict_batch_size": 32, "max_seq_length": 512, "use_tfrecords_if_existing": false, "num_trials": 1, "do_train": false, "do_eval": true}'
+    CUDA_VISIBLE_DEVICES=-1 python3 run_finetuning_pv.py   --data-dir=%s --model-name=8876pv_model_   --hparams '{"model_size": "large", "task_names": ["squad"], "use_tpu": false, "eval_batch_size": 32, "predict_batch_size": 32, "max_seq_length": 512, "use_tfrecords_if_existing": false, "num_trials": 1, "do_train": false, "do_eval": true}'
     """ % args.data_dir
     os.system(command4)
 
     shutil.copy(os.path.join(args.data_dir, '8876pv_model_/results/squad_qa/squad_null_odds.json'),
                 './data/pv_squad_null_odds.json')
 
+    shutil.copy('./data/reg_dev.json', os.path.join(args.data_dir, 'finetuning_data/squad/dev.json'))
+
     command5 = """
-    python3 run_finetuning_reg.py   --data-dir=%s --model-name=8876reg_model_   --hparams '{"model_size": "large", "task_names": ["squad"], "use_tpu": false, "eval_batch_size": 32, "predict_batch_size": 32, "max_seq_length": 512, "use_tfrecords_if_existing": false, "num_trials": 1, "do_train": false, "do_eval": true}'
+    CUDA_VISIBLE_DEVICES=-1 python3 run_finetuning_reg.py   --data-dir=%s --model-name=8876reg_model_   --hparams '{"model_size": "large", "task_names": ["squad"], "use_tpu": false, "eval_batch_size": 32, "predict_batch_size": 32, "max_seq_length": 512, "use_tfrecords_if_existing": false, "num_trials": 1, "do_train": false, "do_eval": true}'
     """ % args.data_dir
     os.system(command5)
 

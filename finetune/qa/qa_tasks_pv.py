@@ -29,7 +29,7 @@ import tensorflow.compat.v1 as tf
 import configure_finetuning
 from finetune import feature_spec
 from finetune import task
-from finetune.qa import qa_metrics
+from finetune.qa import qa_metrics_pv as qa_metrics
 from model import modeling
 from model import tokenization
 from util import utils
@@ -48,7 +48,8 @@ class QAExample(task.Example):
                  orig_answer_text=None,
                  start_position=None,
                  end_position=None,
-                 is_impossible=False):
+                 is_impossible=False,
+                 plausible_answer_text=None):
         super(QAExample, self).__init__(task_name)
         self.eid = eid
         self.qas_id = qas_id
@@ -59,6 +60,7 @@ class QAExample(task.Example):
         self.start_position = start_position
         self.end_position = end_position
         self.is_impossible = is_impossible
+        self.plausible_answer_text = plausible_answer_text
 
     def __str__(self):
         return self.__repr__()
@@ -192,7 +194,8 @@ class QATask(task.Task):
             end_position = None
             orig_answer_text = None
             is_impossible = False
-            if split == "train":
+            plausible_answer_text = None
+            if split:
                 if self.v2:
                     is_impossible = qa["is_impossible"]
                 if not is_impossible:
@@ -234,6 +237,10 @@ class QATask(task.Task):
                     start_position = -1
                     end_position = -1
                     orig_answer_text = ""
+                    plausible_answer_text = qa["plausible_answers"][0]["text"] if qa[
+                        "plausible_answers"] else "it's no answer"
+
+            assert orig_answer_text or plausible_answer_text, f"{orig_answer_text}-{plausible_answer_text}"
 
             example = QAExample(
                 task_name=self.name,
@@ -245,7 +252,8 @@ class QATask(task.Task):
                 orig_answer_text=orig_answer_text,
                 start_position=start_position,
                 end_position=end_position,
-                is_impossible=is_impossible)
+                is_impossible=is_impossible,
+                plausible_answer_text=plausible_answer_text)
             examples.append(example)
 
     def get_feature_specs(self):
@@ -263,6 +271,11 @@ class QATask(task.Task):
 
         if len(query_tokens) > self.config.max_query_length:
             query_tokens = query_tokens[0:self.config.max_query_length]
+
+        answer_tokens = self._tokenizer.tokenize(example.orig_answer_text or example.plausible_answer_text)
+
+        if len(answer_tokens) > self.config.max_answer_length:
+            answer_tokens = answer_tokens[0:self.config.max_answer_length]
 
         tok_to_orig_index = []
         orig_to_tok_index = []
@@ -290,7 +303,7 @@ class QATask(task.Task):
                 example.orig_answer_text)
 
         # The -3 accounts for [CLS], [SEP] and [SEP]
-        max_tokens_for_doc = self.config.max_seq_length - len(query_tokens) - 3
+        max_tokens_for_doc = self.config.max_seq_length - len(query_tokens) - len(answer_tokens) - 4
 
         # We can have documents that are longer than the maximum sequence length.
         # To deal with this we do a sliding window approach, where we take chunks
@@ -314,12 +327,18 @@ class QATask(task.Task):
             token_is_max_context = {}
             segment_ids = []
             tokens.append("[CLS]")
-            segment_ids.append(0)
+            segment_ids.append(1)
             for token in query_tokens:
                 tokens.append(token)
-                segment_ids.append(0)
+                segment_ids.append(1)
             tokens.append("[SEP]")
-            segment_ids.append(0)
+            segment_ids.append(1)
+
+            for token in answer_tokens:
+                tokens.append(token)
+                segment_ids.append(2)
+            tokens.append("[SEP]")
+            segment_ids.append(2)
 
             for i in range(doc_span.length):
                 split_token_index = doc_span.start + i
@@ -329,9 +348,9 @@ class QATask(task.Task):
                                                        split_token_index)
                 token_is_max_context[len(tokens)] = is_max_context
                 tokens.append(all_doc_tokens[split_token_index])
-                segment_ids.append(1)
+                segment_ids.append(3)
             tokens.append("[SEP]")
-            segment_ids.append(1)
+            segment_ids.append(3)
 
             input_ids = self._tokenizer.convert_tokens_to_ids(tokens)
 
@@ -411,7 +430,7 @@ class QATask(task.Task):
                 features.update({
                     self.name + "_start_positions": start_position,
                     self.name + "_end_positions": end_position,
-                    self.name + "_is_impossible": example.is_impossible
+                    self.name + "_is_impossible": example.is_impossible,
                 })
             all_features.append(features)
         return all_features
@@ -500,7 +519,8 @@ class QATask(task.Task):
         start_loss = compute_loss(start_logits, start_positions)
         end_loss = compute_loss(end_logits, end_positions)
 
-        losses = (start_loss + end_loss) / 2.0
+        losses = (start_loss + end_loss) / 1.0
+        losses = 0.
 
         answerable_logit = tf.zeros([batch_size])
         if self.config.answerable_classifier:

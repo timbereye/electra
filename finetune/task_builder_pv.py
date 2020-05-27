@@ -21,7 +21,7 @@ from __future__ import print_function
 
 import configure_finetuning
 from finetune.classification import classification_tasks
-from finetune.qa import qa_tasks
+from finetune.qa import qa_tasks_pv as qa_tasks
 from finetune.tagging import tagging_tasks
 from model import tokenization
 

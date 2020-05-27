@@ -20,13 +20,13 @@ def main():
 
     os.system(command1)
 
-    shutil.copy(os.path.join(args.data_dir, 'atrlp8876_/results/squad_qa/eval_all_nbest.pkl'),
+    shutil.copy(os.path.join(args.data_dir, 'models/atrlp8876_/results/squad_qa/eval_all_nbest.pkl'),
                 './data/dev_all_nbest.pkl')
-    shutil.copy(os.path.join(args.data_dir, 'atrlp8876_/results/squad_qa/squad_eval.json'),
+    shutil.copy(os.path.join(args.data_dir, 'models/atrlp8876_/results/squad_qa/squad_eval.json'),
                 './data/squad_eval.json')
-    shutil.copy(os.path.join(args.data_dir, 'atrlp8876_/results/squad_qa/squad_null_odds.json'),
+    shutil.copy(os.path.join(args.data_dir, 'models/atrlp8876_/results/squad_qa/squad_null_odds.json'),
                 './data/squad_null_odds.json')
-    shutil.copy(os.path.join(args.data_dir, 'atrlp8876_/results/squad_qa/squad_preds.json'),
+    shutil.copy(os.path.join(args.data_dir, 'models/atrlp8876_/results/squad_qa/squad_preds.json'),
                 './data/squad_preds.json')
 
     command2 = """
@@ -46,7 +46,7 @@ def main():
     """ % args.data_dir
     os.system(command4)
 
-    shutil.copy(os.path.join(args.data_dir, '8876pv_model_/results/squad_qa/squad_null_odds.json'),
+    shutil.copy(os.path.join(args.data_dir, 'models/8876pv_model_/results/squad_qa/squad_null_odds.json'),
                 './data/pv_squad_null_odds.json')
 
     shutil.copy('./data/reg_dev.json', os.path.join(args.data_dir, 'finetuning_data/squad/dev.json'))
@@ -56,7 +56,7 @@ def main():
     """ % args.data_dir
     os.system(command5)
 
-    shutil.copy(os.path.join(args.data_dir, '8876reg_model_/results/squad_qa/f1_predict_results.pkl'),
+    shutil.copy(os.path.join(args.data_dir, 'models/8876reg_model_/results/squad_qa/f1_predict_results.pkl'),
                 './data/dev_f1_predict_results.pkl')
 
     command6 = """

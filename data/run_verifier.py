@@ -42,7 +42,7 @@ def run_verifier(input_file, data_dir, output_file):
         merge_null_odds[k] = null_odds[k] + pv_null_odds[k]
     json.dump(merge_null_odds, open(tmp_null_odds_file, 'w', encoding='utf-8'))
 
-    xargs = f"python eval.py {input_file} {preds_file} --na-prob-file {tmp_null_odds_file} --out-file {tmp_eval_file}"
+    xargs = f"python ./data/eval.py {input_file} {preds_file} --na-prob-file {tmp_null_odds_file} --out-file {tmp_eval_file}"
     os.system(xargs)
 
     new_sh = json.load(open(tmp_eval_file, 'r', encoding='utf-8'))["best_exact_thresh"]
@@ -73,7 +73,7 @@ def run_verifier(input_file, data_dir, output_file):
     json.dump(preds, open(output_file, 'w', encoding='utf-8'))
 
     print("atrlp_pv_reg eval:")
-    xargs = f"python eval.py {input_file} {output_file}"
+    xargs = f"python ./data/eval.py {input_file} {output_file}"
     os.system(xargs)
 
 

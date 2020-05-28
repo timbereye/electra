@@ -72,7 +72,6 @@ def run_verifier(input_file, data_dir, output_file):
 
     json.dump(preds, open(output_file, 'w', encoding='utf-8'))
 
-    print("atrlp_pv_reg eval:")
     xargs = f"python ./data/eval.py {input_file} {output_file}"
     os.system(xargs)
 

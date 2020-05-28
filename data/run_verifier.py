@@ -7,10 +7,11 @@ from functional import seq
 import argparse
 
 
-def run_verifier(data_dir, output_file):
+def run_verifier(input_file, data_dir, output_file):
     """
     run pv verifier and reg verifier
     Args:
+        input_file:
         data_dir:
         output_file: final prediction file
 
@@ -41,7 +42,7 @@ def run_verifier(data_dir, output_file):
         merge_null_odds[k] = null_odds[k] + pv_null_odds[k]
     json.dump(merge_null_odds, open(tmp_null_odds_file, 'w', encoding='utf-8'))
 
-    xargs = f"python eval.py dev-v2.0.json {preds_file} --na-prob-file {tmp_null_odds_file} --out-file {tmp_eval_file}"
+    xargs = f"python eval.py {input_file} {preds_file} --na-prob-file {tmp_null_odds_file} --out-file {tmp_eval_file}"
     os.system(xargs)
 
     new_sh = json.load(open(tmp_eval_file, 'r', encoding='utf-8'))["best_exact_thresh"]
@@ -72,7 +73,7 @@ def run_verifier(data_dir, output_file):
     json.dump(preds, open(output_file, 'w', encoding='utf-8'))
 
     print("atrlp_pv_reg eval:")
-    xargs = f"python eval.py dev-v2.0.json {output_file}"
+    xargs = f"python eval.py {input_file} {output_file}"
     os.system(xargs)
 
 
@@ -80,11 +81,12 @@ def main():
     parser = argparse.ArgumentParser()
 
     # Required parameters
+    parser.add_argument('--eval-file', required=True, help="eval file")
     parser.add_argument('--data-dir', required=True, help="data dir")
     parser.add_argument('--output-file', required=True, help="final predictions")
     args = parser.parse_args()
 
-    run_verifier(args.data_dir, args.output_file)
+    run_verifier(args.eval_file, args.data_dir, args.output_file)
 
 
 if __name__ == '__main__':

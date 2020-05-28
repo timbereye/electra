@@ -60,8 +60,8 @@ def main():
                 './data/dev_f1_predict_results.pkl')
 
     command6 = """
-    python3 ./data/run_verifier.py --data-dir=./data --output-file=%s
-    """ % args.output_file
+    python3 ./data/run_verifier.py --eval-file=%s --data-dir=./data --output-file=%s
+    """ % (args.eval_file, args.output_file)
     os.system(command6)
 
 

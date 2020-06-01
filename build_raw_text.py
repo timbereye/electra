@@ -18,6 +18,7 @@ def read_paragraph(x):
     lines = []
     for para in x:
         lines.append(remove_blank(para.text))
+
     return lines
 
 
@@ -40,10 +41,11 @@ def read_docx(x):
 
 raw_text = (seq(docxes)
             .map(read_docx)
+            .map(lambda x: seq(x).filter(lambda y: len(y) > 10).list())
+            .map(lambda x: x + ['\n'])
             .flatten()
-            .filter(lambda x: len(x) > 10)
             ).list()
 
-with open('raw_text.txt', 'w', encoding='utf-8') as f:
+with open('data/raw_text.txt', 'w', encoding='utf-8') as f:
     for line in raw_text:
         f.write(line + '\n')

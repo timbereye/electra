@@ -290,6 +290,7 @@ def model_fn_builder(config: configure_pretraining.PretrainingConfig):
             else:
                 tf.train.init_from_checkpoint(init_checkpoint, assignment_map)
             print(assignment_map)
+            print(tvars)
 
         utils.log("Model is built!")
         if mode == tf.estimator.ModeKeys.TRAIN:

@@ -102,8 +102,6 @@ def model_fn_builder(config: configure_finetuning.FinetuningConfig, tasks,
                 scaffold_fn = tpu_scaffold
             else:
                 tf.train.init_from_checkpoint(init_checkpoint, assignment_map)
-            print(assignment_map)
-            print(tvars)
 
         # Build model for training or prediction
         if mode == tf.estimator.ModeKeys.TRAIN:

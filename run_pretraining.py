@@ -190,7 +190,7 @@ class PretrainingModel(object):
 
     def _get_discriminator_output(self, inputs, discriminator, labels):
         """Discriminator binary classifier."""
-        with tf.variable_scope("discriminator_predictions"):
+        with tf.variable_scope("discriminator_predi ctions"):
             hidden = tf.layers.dense(
                 discriminator.get_sequence_output(),
                 units=self._bert_config.hidden_size,
@@ -274,7 +274,7 @@ def model_fn_builder(config: configure_pretraining.PretrainingConfig):
                                  mode == tf.estimator.ModeKeys.TRAIN)
 
         # Load pre-trained weights from checkpoint
-        init_checkpoint = tf.train.latest_checkpoint(config.model_dir)
+        init_checkpoint = tf.train.latest_checkpoint(config.init_checkpoint_dir)
         utils.log("Using checkpoint", init_checkpoint)
         tvars = tf.trainable_variables()
         scaffold_fn = None
@@ -289,8 +289,6 @@ def model_fn_builder(config: configure_pretraining.PretrainingConfig):
                 scaffold_fn = tpu_scaffold
             else:
                 tf.train.init_from_checkpoint(init_checkpoint, assignment_map)
-            print(assignment_map)
-            print(tvars)
 
         utils.log("Model is built!")
         if mode == tf.estimator.ModeKeys.TRAIN:

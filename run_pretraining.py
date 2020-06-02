@@ -190,7 +190,7 @@ class PretrainingModel(object):
 
     def _get_discriminator_output(self, inputs, discriminator, labels):
         """Discriminator binary classifier."""
-        with tf.variable_scope("discriminator_predi ctions"):
+        with tf.variable_scope("discriminator_predictions"):
             hidden = tf.layers.dense(
                 discriminator.get_sequence_output(),
                 units=self._bert_config.hidden_size,

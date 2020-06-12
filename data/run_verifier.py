@@ -54,6 +54,7 @@ def run_verifier(input_file, data_dir, output_file):
     length = 5
     believe_f1_th = 1.
     believe_prob_th = 0.3
+    ambig_th = 0.2
     dev = json.load(open(input_file))
     for article in dev['data']:
         for paragraph in article["paragraphs"]:
@@ -72,9 +73,13 @@ def run_verifier(input_file, data_dir, output_file):
                                            'prob': x[1]['probability']})
                            .sorted(lambda x: x['f1_pred'], reverse=True)
                            ).list()
-                if len(chooses):
+                if len(chooses) > 1:
+                    is_ambig = abs(chooses[0]['prob'] - chooses[1]['prob']) < ambig_th
+                else:
+                    is_ambig = False
+                if is_ambig:
                     max_prob = seq(chooses).map(lambda x: x['prob']).max()
-                    if chooses[0]['f1_pred'] > believe_f1_th and max_prob - chooses[0]['prob'] < believe_prob_th and not preds[qid]:
+                    if chooses[0]['f1_pred'] > believe_f1_th:
                         # if not answers:
                         #     print(2)
                         # if not preds[qid] and answers:

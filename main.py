@@ -35,7 +35,7 @@ def main():
     os.system(command2)
 
     command3 = """
-    python3 ./data/run_gen_data.py   --run-type=reg --std-dev-file=%s --input-file=./data/dev_all_nbest.pkl --output-file=./data/reg_dev.json
+    python3 ./data/run_gen_data.py   --run-type=reg --std-dev-file=%s --input-file=./data/dev_all_nbest.pkl --output-file=./data/reg_dev.json --split=test
     """ % args.eval_file
     os.system(command3)
 

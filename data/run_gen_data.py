@@ -73,7 +73,7 @@ def gen_pv_data(std_dev_file, preds_file, output_file):
     print("generate pv data finished! ")
 
 
-def gen_answer_refine_file(std_dev_file, nbest_file, output_file):
+def gen_answer_refine_file(std_dev_file, nbest_file, output_file, split):
     """
     generate answer refine file, for choose refine answer
     Args:
@@ -85,7 +85,6 @@ def gen_answer_refine_file(std_dev_file, nbest_file, output_file):
     """
     data = json.load(open(std_dev_file, 'r', encoding='utf-8'))
     all_nbest = pickle.load(open(nbest_file, 'rb'))
-    split = 'dev'
     count = 0
 
     for article in data['data']:
@@ -95,7 +94,7 @@ def gen_answer_refine_file(std_dev_file, nbest_file, output_file):
             for qa in p['qas']:
                 qid = qa['id']
                 gold_answers = qa['answers']
-                if not gold_answers:
+                if split != 'test' and not gold_answers:
                     continue
                 nbest = all_nbest[qid][:5]
 
@@ -106,14 +105,19 @@ def gen_answer_refine_file(std_dev_file, nbest_file, output_file):
                     if split == 'train':
                         a = qa['answers'][0]['text']
                         f1 = compute_f1(a, pred)
-                    else:
+                    elif split == 'dev':
                         f1 = max(compute_f1(a['text'], pred) for a in gold_answers)
+                    else:
+                        f1 = 0.
                     if pred in most_text or most_text in pred:
                         new_qa.append({"f1_score": f1,
                                        "pred_answer": pred,
                                        "question": qa['question'],
                                        "id": f"{qid}_{i}"})
-                if new_qa[0]["f1_score"] > 0:
+                if split == 'train':
+                    if new_qa[0]["f1_score"] > 0:
+                        new_qas.extend(new_qa)
+                else:
                     new_qas.extend(new_qa)
             p['qas'] = new_qas
             count += len(new_qas)

@@ -94,31 +94,48 @@ def gen_answer_refine_file(std_dev_file, nbest_file, output_file, split):
             for qa in p['qas']:
                 qid = qa['id']
                 gold_answers = qa['answers']
-                if split != 'test' and not gold_answers:
-                    continue
+                plausible_answers = qa.get("plausible_answers", None)
+
                 nbest = all_nbest[qid][:5]
 
-                most_text = nbest[0]['text']
                 new_qa = []
+                all_preds = []
                 for i, nb in enumerate(nbest):
                     pred = nb['text']
                     if split == 'train':
-                        a = qa['answers'][0]['text']
-                        f1 = compute_f1(a, pred)
+                        if gold_answers:
+                            a = gold_answers[0]['text']
+                            f1 = compute_f1(a, pred)
+                        else:
+                            f1 = 0.
                     elif split == 'dev':
                         f1 = max(compute_f1(a['text'], pred) for a in gold_answers)
                     else:
                         f1 = 0.
-                    if pred in most_text or most_text in pred:
+                    if pred not in all_preds:
                         new_qa.append({"f1_score": f1,
                                        "pred_answer": pred,
                                        "question": qa['question'],
                                        "id": f"{qid}_{i}"})
+                    all_preds.append(pred)
+
                 if split == 'train':
-                    if new_qa[0]["f1_score"] > 0:
-                        new_qas.extend(new_qa)
-                else:
-                    new_qas.extend(new_qa)
+                    if gold_answers:
+                        pred = gold_answers[0]['text']
+                        f1 = 1.
+                    elif plausible_answers:
+                        pred = plausible_answers[0]['text']
+                        f1 = 0.
+                    else:
+                        raise
+
+                    if pred not in all_preds:
+                        new_qa.append({"f1_score": f1,
+                                       "pred_answer": pred,
+                                       "question": qa['question'],
+                                       "id": f"{qid}_{len(new_qa)}"})
+
+                new_qas.extend(new_qa)
             p['qas'] = new_qas
             count += len(new_qas)
 

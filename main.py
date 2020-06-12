@@ -34,10 +34,10 @@ def main():
     """ % args.eval_file
     os.system(command2)
 
-    command3 = """
-    python3 ./data/run_gen_data.py   --run-type=reg --std-dev-file=%s --input-file=./data/dev_all_nbest.pkl --output-file=./data/reg_dev.json --split=test
-    """ % args.eval_file
-    os.system(command3)
+    # command3 = """
+    # python3 ./data/run_gen_data.py   --run-type=reg --std-dev-file=%s --input-file=./data/dev_all_nbest.pkl --output-file=./data/reg_dev.json --split=test
+    # """ % args.eval_file
+    # os.system(command3)
 
     shutil.copy('./data/pv_dev.json', os.path.join(args.data_dir, 'finetuning_data/squad/dev.json'))
 
@@ -49,15 +49,15 @@ def main():
     shutil.copy(os.path.join(args.data_dir, 'models/8876pv_model_/results/squad_qa/squad_null_odds.json'),
                 './data/pv_squad_null_odds.json')
 
-    shutil.copy('./data/reg_dev.json', os.path.join(args.data_dir, 'finetuning_data/squad/dev.json'))
+    # shutil.copy('./data/reg_dev.json', os.path.join(args.data_dir, 'finetuning_data/squad/dev.json'))
 
-    command5 = """
-    python3 run_finetuning_reg.py   --data-dir=%s --model-name=8876reg_model_   --hparams '{"model_size": "large", "task_names": ["squad"], "use_tpu": false, "eval_batch_size": 16, "predict_batch_size": 16, "max_seq_length": 512, "use_tfrecords_if_existing": false, "num_trials": 1, "do_train": false, "do_eval": true}'
-    """ % args.data_dir
-    os.system(command5)
+    # command5 = """
+    # python3 run_finetuning_reg.py   --data-dir=%s --model-name=8876reg_model_   --hparams '{"model_size": "large", "task_names": ["squad"], "use_tpu": false, "eval_batch_size": 16, "predict_batch_size": 16, "max_seq_length": 512, "use_tfrecords_if_existing": false, "num_trials": 1, "do_train": false, "do_eval": true}'
+    # """ % args.data_dir
+    # os.system(command5)
 
-    shutil.copy(os.path.join(args.data_dir, 'models/8876reg_model_/results/squad_qa/f1_predict_results.pkl'),
-                './data/dev_f1_predict_results.pkl')
+    # shutil.copy(os.path.join(args.data_dir, 'models/8876reg_model_/results/squad_qa/f1_predict_results.pkl'),
+    #             './data/dev_f1_predict_results.pkl')
 
     command6 = """
     python3 ./data/run_verifier.py --eval-file=%s --data-dir=./data --output-file=%s

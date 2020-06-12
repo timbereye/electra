@@ -109,7 +109,7 @@ def gen_answer_refine_file(std_dev_file, nbest_file, output_file, split):
                         else:
                             f1 = 0.
                     elif split == 'dev':
-                        f1 = max(compute_f1(a['text'], pred) for a in gold_answers)
+                        f1 = max(compute_f1(a['text'], pred) for a in gold_answers) if gold_answers else 0.
                     else:
                         f1 = 0.
                     if pred not in all_preds:

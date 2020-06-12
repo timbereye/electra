@@ -136,12 +136,13 @@ def main():
     parser.add_argument('--std-dev-file', required=True, help="Official eval file")
     parser.add_argument('--input-file', required=True, help="Previous model output ")
     parser.add_argument("--output-file", required=True, help="Generate data output")
+    parser.add_argument("--split", required=False, help="data type")
     args = parser.parse_args()
 
     if args.run_type == 'pv':
         gen_pv_data(args.std_dev_file, args.input_file, args.output_file)
     elif args.run_type == 'reg':
-        gen_answer_refine_file(args.std_dev_file, args.input_file, args.output_file)
+        gen_answer_refine_file(args.std_dev_file, args.input_file, args.output_file, args.split)
     else:
         raise
 

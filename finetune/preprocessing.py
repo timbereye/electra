@@ -22,6 +22,8 @@ from __future__ import print_function
 import collections
 import os
 import random
+
+import dill
 import numpy as np
 import tensorflow.compat.v1 as tf
 
@@ -33,32 +35,36 @@ from util import utils
 class Preprocessor(object):
     """Class for loading, preprocessing, and serializing fine-tuning datasets."""
 
-    def __init__(self, config: configure_finetuning.FinetuningConfig, tasks):
+    def __init__(self, config: configure_finetuning.FinetuningConfig, tasks, do_ensemble=False):
         self._config = config
         self._tasks = tasks
         self._name_to_task = {task.name: task for task in tasks}
+        self.do_ensemble = do_ensemble
 
         self._feature_specs = feature_spec.get_shared_feature_specs(config)
         for task in tasks:
-            self._feature_specs += task.get_feature_specs()
+            if task.name == "squad" and self.do_ensemble:
+                self._feature_specs += task.get_feature_specs(do_ensemble=self.do_ensemble)
+            else:
+                self._feature_specs += task.get_feature_specs()
         self._name_to_feature_config = {
             spec.name: spec.get_parsing_spec()
             for spec in self._feature_specs
         }
         assert len(self._name_to_feature_config) == len(self._feature_specs)
 
-    def prepare_train(self):
-        return self._serialize_dataset(self._tasks, True, "train")
+    def prepare_train(self, sub=None):
+        return self._serialize_dataset(self._tasks, True, "train", sub)
 
     def prepare_predict(self, tasks, split):
         return self._serialize_dataset(tasks, False, split)
 
-    def _serialize_dataset(self, tasks, is_training, split):
+    def _serialize_dataset(self, tasks, is_training, split, sub=None):
         """Write out the dataset as tfrecords."""
         dataset_name = "_".join(sorted([task.name for task in tasks]))
         dataset_name += "_" + split
         dataset_prefix = os.path.join(
-            self._config.preprocessed_data_dir, dataset_name)
+            self._config.preprocessed_data_dir(str(sub) if sub else ""), dataset_name)
         tfrecords_path = dataset_prefix + ".tfrecord"
         metadata_path = dataset_prefix + ".metadata"
         batch_size = (self._config.train_batch_size if is_training else
@@ -74,13 +80,13 @@ class Preprocessor(object):
             utils.log("Existing tfrecords not found so creating")
             examples = []
             for task in tasks:
-                task_examples = task.get_examples(split)
+                task_examples = task.get_examples(split, sub)
                 examples += task_examples
             if is_training:
                 random.shuffle(examples)
             utils.mkdir(tfrecords_path.rsplit("/", 1)[0])
             n_examples = self.serialize_examples(
-                examples, is_training, tfrecords_path, batch_size)
+                examples, is_training, tfrecords_path, batch_size, split=split)
             utils.write_json({"n_examples": n_examples}, metadata_path)
 
         input_fn = self._input_fn_builder(tfrecords_path, is_training)
@@ -91,8 +97,15 @@ class Preprocessor(object):
 
         return input_fn, steps
 
-    def serialize_examples(self, examples, is_training, output_file, batch_size):
+    def serialize_examples(self, examples, is_training, output_file, batch_size, split="train"):
         """Convert a set of `InputExample`s to a TFRecord file."""
+        total_logits = []
+        if self.do_ensemble:  # 加载子模型生成的logits
+            for i in range(self._config.ensemble_k):
+                with tf.gfile.Open(self._config.logits_tmp(split + str(i)),
+                                   'rb') as fp:
+                    logits = dill.load(fp)
+                    total_logits.append(logits)
         n_examples = 0
         with tf.io.TFRecordWriter(output_file) as writer:
             for (ex_index, example) in enumerate(examples):
@@ -100,8 +113,7 @@ class Preprocessor(object):
                     utils.log("Writing example {:} of {:}".format(
                         ex_index, len(examples)))
                 for tf_example in self._example_to_tf_example(
-                        example, is_training,
-                        log=self._config.log_examples and ex_index < 1):
+                        example, is_training, log=self._config.log_examples and ex_index < 1, logits=total_logits):
                     writer.write(tf_example.SerializeToString())
                     n_examples += 1
             # add padding so the dataset is a multiple of batch_size
@@ -111,12 +123,22 @@ class Preprocessor(object):
                 n_examples += 1
         return n_examples
 
-    def _example_to_tf_example(self, example, is_training, log=False):
+    def _example_to_tf_example(self, example, is_training, log=False, logits=None):
+        task_name = example.task_name
         examples = self._name_to_task[example.task_name].featurize(
             example, is_training, log)
         if not isinstance(examples, list):
             examples = [examples]
         for example in examples:
+            unique_id = example[task_name + "_eid"]
+            if self.do_ensemble:
+                for i in range(self._config.ensemble_k):
+                    example_logits_info = logits[i][unique_id]
+                    example.update(
+                        {task_name + "_start_logits" + "_" + str(i): example_logits_info[0],
+                         task_name + "_end_logits" + "_" + str(i): example_logits_info[1],
+                         task_name + "_answerable_logit" + "_" + str(i): example_logits_info[2]}
+                    )
             yield self._make_tf_example(**example)
 
     def _make_tf_example(self, **kwargs):

@@ -22,6 +22,7 @@ from __future__ import print_function
 import argparse
 import collections
 import json
+import dill
 
 import tensorflow.compat.v1 as tf
 
@@ -172,10 +173,12 @@ class ModelRunner(object):
     """Fine-tunes a model on a supervised task."""
 
     def __init__(self, config: configure_finetuning.FinetuningConfig, tasks,
-                 pretraining_config=None):
+                 pretraining_config=None, sub_data=None, sub_model=None, do_ensemble=False):
         self._config = config
         self._tasks = tasks
-        self._preprocessor = preprocessing.Preprocessor(config, self._tasks)
+        self._preprocessor = preprocessing.Preprocessor(config, self._tasks, do_ensemble=do_ensemble)
+        self._sub_data = sub_data
+        self._sub_model = sub_model
 
         is_per_host = tf.estimator.tpu.InputPipelineConfig.PER_HOST_V2
         tpu_cluster_resolver = None
@@ -189,14 +192,14 @@ class ModelRunner(object):
             tpu_job_name=config.tpu_job_name)
         run_config = tf.estimator.tpu.RunConfig(
             cluster=tpu_cluster_resolver,
-            model_dir=config.model_dir,
+            model_dir=config.model_dir(sub_model) if sub_model else "",
             save_checkpoints_steps=config.save_checkpoints_steps,
             save_checkpoints_secs=None,
             tpu_config=tpu_config)
 
         if self._config.do_train:
             (self._train_input_fn,
-             self.train_steps) = self._preprocessor.prepare_train()
+             self.train_steps) = self._preprocessor.prepare_train(sub=sub_data)
         else:
             self._train_input_fn, self.train_steps = None, 0
         model_fn = model_fn_builder(
@@ -217,7 +220,20 @@ class ModelRunner(object):
         self._estimator.train(
             input_fn=self._train_input_fn, max_steps=self.train_steps)
 
-    def evaluate(self):
+    def evaluate(self, prepare_ensemble=False, split="dev"):
+        if prepare_ensemble:
+            res = {task.name: self.evaluate_task(task, split, False) for task in self._tasks}
+            assert "squad" in res
+            logits_info = {}
+            for r in res["squad"]._all_results:
+                unique_id = r.unique_id
+                start_logits = r.start_logits
+                end_logits = r.end_logits
+                answerable_logit = r.answerable_logit
+                logits_info[unique_id] = [start_logits, end_logits, answerable_logit]
+            with tf.gfile.Open(self._config.logits_tmp(split + (str(self._sub_model) if self._sub_model else "")), 'wb') as fp:
+                dill.dump(logits_info, fp)
+            return res
         return {task.name: self.evaluate_task(task) for task in self._tasks}
 
     def evaluate_task(self, task, split="dev", return_results=True):
@@ -290,50 +306,57 @@ def run_finetuning(config: configure_finetuning.FinetuningConfig):
     heading = lambda msg: utils.heading(msg + ": " + heading_info)
     heading("Config")
     utils.log_config(config)
-    generic_model_dir = config.model_dir
     tasks = task_builder.get_tasks(config)
-
-    # Train and evaluate num_trials models with different random seeds
-    while config.num_trials < 0 or trial <= config.num_trials:
-        config.model_dir = generic_model_dir + "_" + str(trial)
-        if config.do_train:
-            utils.rmkdir(config.model_dir)
-
-        model_runner = ModelRunner(config, tasks)
-        if config.do_train:
-            heading("Start training")
+    if config.do_train:
+        # train sub-model
+        heading("Training sub-model")
+        for i in range(config.ensemble_k):
+            model_runner = ModelRunner(config, tasks, sub_data=i, sub_model=i)
             model_runner.train()
             utils.log()
+        # getnerate train logits
+        heading("Generate train logits")
+        for i in range(config.ensemble_k):
+            model_runner = ModelRunner(config, tasks, sub_model=i)
+            model_runner.evaluate(prepare_ensemble=True, split="train")
+            utils.log()
+        # train ensemble model
+        model_runner = ModelRunner(config, tasks, do_ensemble=True)
+        heading("Training ensemble model")
+        model_runner.train()
+        utils.log()
 
-        if config.do_eval:
-            heading("Run dev set evaluation")
-            results.append(model_runner.evaluate())
-            write_results(config, results)
-            if config.write_test_outputs and trial <= config.n_writes_test:
-                heading("Running on the test set and writing the predictions")
-                for task in tasks:
-                    # Currently only writing preds for GLUE and SQuAD 2.0 is supported
-                    if task.name in ["cola", "mrpc", "mnli", "sst", "rte", "qnli", "qqp",
-                                     "sts"]:
-                        for split in task.get_test_splits():
-                            model_runner.write_classification_outputs([task], trial, split)
-                    elif task.name == "squad":
-                        scorer = model_runner.evaluate_task(task, "test", False)
-                        scorer.write_predictions()
-                        preds = utils.load_json(config.qa_preds_file("squad"))
-                        null_odds = utils.load_json(config.qa_na_file("squad"))
-                        for q, _ in preds.items():
-                            if null_odds[q] > config.qa_na_threshold:
-                                preds[q] = ""
-                        utils.write_json(preds, config.test_predictions(
-                            task.name, "test", trial))
-                    else:
-                        utils.log("Skipping task", task.name,
-                                  "- writing predictions is not supported for this task")
-
-        if trial != config.num_trials and (not config.keep_all_models):
-            utils.rmrf(config.model_dir)
-        trial += 1
+    if config.do_eval:
+        heading("Generate dev logits")
+        for i in range(config.ensemble_k):
+            model_runner = ModelRunner(config, tasks, sub_model=i)
+            model_runner.evaluate(prepare_ensemble=True, split="dev")
+            utils.log()
+        model_runner = ModelRunner(config, tasks, do_ensemble=True)
+        heading("Run dev set evaluation")
+        results.append(model_runner.evaluate())
+        write_results(config, results)
+        if config.write_test_outputs and trial <= config.n_writes_test:
+            heading("Running on the test set and writing the predictions")
+            for task in tasks:
+                # Currently only writing preds for GLUE and SQuAD 2.0 is supported
+                if task.name in ["cola", "mrpc", "mnli", "sst", "rte", "qnli", "qqp",
+                                 "sts"]:
+                    for split in task.get_test_splits():
+                        model_runner.write_classification_outputs([task], trial, split)
+                elif task.name == "squad":
+                    scorer = model_runner.evaluate_task(task, "test", False)
+                    scorer.write_predictions()
+                    preds = utils.load_json(config.qa_preds_file("squad"))
+                    null_odds = utils.load_json(config.qa_na_file("squad"))
+                    for q, _ in preds.items():
+                        if null_odds[q] > config.qa_na_threshold:
+                            preds[q] = ""
+                    utils.write_json(preds, config.test_predictions(
+                        task.name, "test", trial))
+                else:
+                    utils.log("Skipping task", task.name,
+                              "- writing predictions is not supported for this task")
 
 
 def main():

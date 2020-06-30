@@ -307,8 +307,8 @@ class QATask(task.Task):
             )
             examples.append(example)
 
-    def get_feature_specs(self):
-        return [
+    def get_feature_specs(self, do_ensemble=False):
+        ret = [
             feature_spec.FeatureSpec(self.name + "_eid", []),
             feature_spec.FeatureSpec(self.name + "_start_positions", []),
             feature_spec.FeatureSpec(self.name + "_end_positions", []),
@@ -316,8 +316,16 @@ class QATask(task.Task):
             feature_spec.FeatureSpec(self.name + "_plau_answer_start", []),
             feature_spec.FeatureSpec(self.name + "_plau_answer_end", []),
         ]
+        if do_ensemble:
+            for i in range(self.config.ensemble_k):
+                ret.append(feature_spec.FeatureSpec(self.name + "_start_logits" + "_" + str(i),
+                                                    [self.config.max_seq_length]))
+                ret.append(feature_spec.FeatureSpec(self.name + "_end_logits" + "_" + str(i),
+                                                    [self.config.max_seq_length]))
+                ret.append(feature_spec.FeatureSpec(self.name + "_answerable_logit" + "_" + str(i),
+                                                    [self.config.max_seq_length]))
+        return ret
 
-    # 将dependence matrix作为attention mask引入模型，这里我们只考虑context
     def featurize(self, example: QAExample, is_training, log=False,
                   for_eval=False):
         all_features = []
@@ -499,7 +507,7 @@ class QATask(task.Task):
         return all_features
 
     def get_prediction_module(self, bert_model, features, is_training,
-                              percent_done):
+                              percent_done, do_ensemble=False):
         final_hidden = bert_model.get_sequence_output()
 
         final_hidden_shape = modeling.get_shape_list(final_hidden, expected_rank=3)
@@ -520,6 +528,18 @@ class QATask(task.Task):
                                   self.config.beam_size], tf.int32)
         if self.config.joint_prediction:
             start_logits += 1000.0 * (answer_mask - 1)
+
+            if do_ensemble:
+                start_logits_list = [start_logits]
+                for i in range(self.config.ensemble_k):
+                    start_logits_sub = features[self.name + "_start_logits" + "_" + str(i)]
+                    start_logits_list.append(start_logits_sub)
+                start_alpha = tf.get_variable(
+                    "start_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
+                start_alpha = tf.nn.softmax(start_alpha)
+                start_logits_st = tf.stack(start_logits_list, axis=0)
+                start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
+
             start_log_probs = tf.nn.log_softmax(start_logits)
             start_top_log_probs, start_top_index = tf.nn.top_k(
                 start_log_probs, k=self.config.beam_size)
@@ -579,6 +599,17 @@ class QATask(task.Task):
         start_positions = features[self.name + "_start_positions"]
         end_positions = features[self.name + "_end_positions"]
 
+        if do_ensemble:
+            end_logits_list = [end_logits]
+            for i in range(self.config.ensemble_k):
+                end_logits_sub = features[self.name + "_end_logits" + "_" + str(i)]
+                end_logits_list.append(end_logits_sub)
+            end_alpha = tf.get_variable(
+                "end_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
+            end_alpha = tf.nn.softmax(end_alpha)
+            end_logits_st = tf.stack(end_logits_list, axis=0)
+            end_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", end_logits_st, end_alpha), axis=0)
+
         start_loss = compute_loss(start_logits, start_positions)
         end_loss = compute_loss(end_logits, end_positions)
 
@@ -609,6 +640,18 @@ class QATask(task.Task):
                 final_repr = tf.layers.dense(final_repr, 512,
                                              activation=modeling.gelu)
             answerable_logit = tf.squeeze(tf.layers.dense(final_repr, 1), -1)
+
+            if do_ensemble:
+                answerable_logit_list = [answerable_logit]
+                for i in range(self.config.ensemble_k):
+                    answerable_logit_sub = features[self.name + "_answerable_logit" + "_" + str(i)]
+                    answerable_logit_list.append(answerable_logit_sub)
+                answerable_alpha = tf.get_variable(
+                    "answerable_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
+                answerable_alpha = tf.nn.softmax(answerable_alpha)
+                answerable_logit_st = tf.stack(answerable_logit_list, axis=0)
+                answerable_logit = tf.reduce_sum(tf.einsum("ijk,i->ijk", answerable_logit_st, answerable_alpha), axis=0)
+
             answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
                 labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
                 logits=answerable_logit)
@@ -676,13 +719,13 @@ class SQuADTask(QATask):
                  tokenizer, v2=False):
         super(SQuADTask, self).__init__(config, name, tokenizer, v2=v2)
 
-    def get_examples(self, split):
+    def get_examples(self, split, sub=None):
         if split in self._examples:
             return self._examples[split]
 
         with tf.io.gfile.GFile(os.path.join(
                 self.config.raw_data_dir(self.name),
-                split + ("-debug" if self.config.debug else "") + ".json"), "r") as f:
+                split + ("-debug" if self.config.debug else "") + (str(sub) if sub else "") + ".json"), "r") as f:
             input_data = json.load(f)["data"]
 
         examples = []

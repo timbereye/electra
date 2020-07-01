@@ -66,7 +66,6 @@ class Preprocessor(object):
         dataset_prefix = os.path.join(
             self._config.preprocessed_data_dir(str(sub) if sub else ""), dataset_name)
         tfrecords_path = dataset_prefix + ".tfrecord"
-        print(tfrecords_path)
         metadata_path = dataset_prefix + ".metadata"
         batch_size = (self._config.train_batch_size if is_training else
                       self._config.eval_batch_size)

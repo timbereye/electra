@@ -309,15 +309,15 @@ def run_finetuning(config: configure_finetuning.FinetuningConfig):
     tasks = task_builder.get_tasks(config)
     if config.do_train:
         # train sub-model
-        heading("Training sub-model")
         for i in range(config.ensemble_k):
-            model_runner = ModelRunner(config, tasks, sub_data=i, sub_model=i)
+            heading("Training sub-model: {}".format(i))
+            model_runner = ModelRunner(config, tasks, sub_data=str(i), sub_model=str(i))
             model_runner.train()
             utils.log()
         # getnerate train logits
-        heading("Generate train logits")
         for i in range(config.ensemble_k):
-            model_runner = ModelRunner(config, tasks, sub_model=i)
+            heading("Generate train logits: {}".format(i))
+            model_runner = ModelRunner(config, tasks, sub_model=str(i))
             model_runner.evaluate(prepare_ensemble=True, split="train")
             utils.log()
         # train ensemble model
@@ -327,9 +327,9 @@ def run_finetuning(config: configure_finetuning.FinetuningConfig):
         utils.log()
 
     if config.do_eval:
-        heading("Generate dev logits")
         for i in range(config.ensemble_k):
-            model_runner = ModelRunner(config, tasks, sub_model=i)
+            heading("Generate dev logits: {}".format(i))
+            model_runner = ModelRunner(config, tasks, sub_model=str(i))
             model_runner.evaluate(prepare_ensemble=True, split="dev")
             utils.log()
         model_runner = ModelRunner(config, tasks, do_ensemble=True)

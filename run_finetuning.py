@@ -230,6 +230,7 @@ class ModelRunner(object):
             res = {task.name: self.evaluate_task(task, split, False, prepare_ensemble) for task in self._tasks}
             assert "squad" in res
             logits_info = {}
+            print(len(res["squad"]._all_results), res["squad"]._all_results[0])
             for r in res["squad"]._all_results:
                 unique_id = r.unique_id
                 print(unique_id)

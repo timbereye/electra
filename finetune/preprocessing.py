@@ -65,6 +65,8 @@ class Preprocessor(object):
         dataset_name += "_" + split
         dataset_prefix = os.path.join(
             self._config.preprocessed_data_dir(str(sub) if sub else ""), dataset_name)
+        if self.do_ensemble:  # ensemble模型需要logits信息，重新保存
+            dataset_prefix = dataset_prefix + "_ensemble"
         tfrecords_path = dataset_prefix + ".tfrecord"
         metadata_path = dataset_prefix + ".metadata"
         batch_size = (self._config.train_batch_size if is_training else

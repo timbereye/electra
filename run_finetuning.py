@@ -22,6 +22,8 @@ from __future__ import print_function
 import argparse
 import collections
 import json
+import os
+
 import dill
 
 import tensorflow.compat.v1 as tf
@@ -223,6 +225,9 @@ class ModelRunner(object):
     def evaluate(self, prepare_ensemble=False, split="dev"):
         if prepare_ensemble:
             res = {task.name: self.evaluate_task(task, split, False) for task in self._tasks}
+            logits_file = self._config.logits_tmp(split + (str(self._sub_model) if self._sub_model else ""))
+            if os.path.exists(logits_file):
+                return res
             assert "squad" in res
             logits_info = {}
             for r in res["squad"]._all_results:
@@ -231,7 +236,7 @@ class ModelRunner(object):
                 end_logits = r.end_logits
                 answerable_logit = r.answerable_logit
                 logits_info[unique_id] = [start_logits, end_logits, answerable_logit]
-            with tf.gfile.Open(self._config.logits_tmp(split + (str(self._sub_model) if self._sub_model else "")), 'wb') as fp:
+            with tf.gfile.Open(logits_file, 'wb') as fp:
                 dill.dump(logits_info, fp)
             return res
         return {task.name: self.evaluate_task(task) for task in self._tasks}

@@ -186,7 +186,7 @@ class Preprocessor(object):
                 tf.data.experimental.map_and_batch(
                     self._decode_tfrecord,
                     batch_size=params["batch_size"],
-                    drop_remainder=True))
+                    drop_remainder=False))
 
         return input_fn
 

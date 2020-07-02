@@ -232,6 +232,7 @@ class ModelRunner(object):
             logits_info = {}
             for r in res["squad"]._all_results:
                 unique_id = r.unique_id
+                print(unique_id)
                 start_logits = r.start_logits
                 end_logits = r.end_logits
                 answerable_logit = r.answerable_logit

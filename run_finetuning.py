@@ -226,7 +226,7 @@ class ModelRunner(object):
         if prepare_ensemble:
             res = {task.name: self.evaluate_task(task, split, False) for task in self._tasks}
             logits_file = self._config.logits_tmp(split + (str(self._sub_model) if self._sub_model else ""))
-            if os.path.exists(logits_file):
+            if tf.gfile.Exists(logits_file):
                 return res
             assert "squad" in res
             logits_info = {}

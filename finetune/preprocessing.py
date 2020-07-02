@@ -135,7 +135,12 @@ class Preprocessor(object):
             unique_id = example[task_name + "_eid"]
             if self.do_ensemble:
                 for i in range(self._config.ensemble_k):
-                    example_logits_info = logits[i][unique_id]
+                    try:
+                        example_logits_info = logits[i][unique_id]
+                    except:
+                        print(i)
+                        print(len(logits[i]))
+                        print(logits[i].keys())
                     example.update(
                         {task_name + "_start_logits" + "_" + str(i): example_logits_info[0],
                          task_name + "_end_logits" + "_" + str(i): example_logits_info[1],

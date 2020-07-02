@@ -141,7 +141,7 @@ class Preprocessor(object):
                         print(i)
                         print(len(logits[i]))
                         print(unique_id, type(unique_id))
-                        print(logits[i].keys(), type(logits[i].keys()[0]))
+                        print(logits[i].keys(), type(list(logits[i].keys())[0]))
                     example.update(
                         {task_name + "_start_logits" + "_" + str(i): example_logits_info[0],
                          task_name + "_end_logits" + "_" + str(i): example_logits_info[1],

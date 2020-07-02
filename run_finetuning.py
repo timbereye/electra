@@ -231,8 +231,10 @@ class ModelRunner(object):
             assert "squad" in res
             logits_info = {}
             print(len(res["squad"]._all_results), res["squad"]._all_results[-1])
+            unique_ids = []
             for r in res["squad"]._all_results:
                 unique_id = r.unique_id
+                unique_ids.append(unique_id)
                 print(unique_id)
                 start_logits = r.start_logits
                 end_logits = r.end_logits
@@ -250,6 +252,7 @@ class ModelRunner(object):
         results = self._estimator.predict(input_fn=eval_input_fn,
                                           yield_single_examples=True)
         scorer = task.get_scorer(split=split)
+
         for r in results:
             print("rr:", r["squad_eid"])
             if r["task_id"] != len(self._tasks) or prepare_ensemble:  # ignore padding examples

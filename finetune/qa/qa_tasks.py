@@ -305,6 +305,7 @@ class QATask(task.Task):
                 plau_answer_text=plau_answer_text,
                 plau_answer_end=plau_answer_end_w,
             )
+            print("eid:", len(examples))
             examples.append(example)
 
     def get_feature_specs(self, do_ensemble=False):

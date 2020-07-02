@@ -319,11 +319,11 @@ class QATask(task.Task):
         if do_ensemble:
             for i in range(self.config.ensemble_k):
                 ret.append(feature_spec.FeatureSpec(self.name + "_start_logits" + "_" + str(i),
-                                                    [self.config.max_seq_length]))
+                                                    [self.config.max_seq_length], is_int_feature=False))
                 ret.append(feature_spec.FeatureSpec(self.name + "_end_logits" + "_" + str(i),
-                                                    [self.config.max_seq_length]))
+                                                    [self.config.max_seq_length], is_int_feature=False))
                 ret.append(feature_spec.FeatureSpec(self.name + "_answerable_logit" + "_" + str(i),
-                                                    [self.config.max_seq_length]))
+                                                    [], is_int_feature=False))
         return ret
 
     def featurize(self, example: QAExample, is_training, log=False,

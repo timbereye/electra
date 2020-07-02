@@ -227,7 +227,7 @@ class ModelRunner(object):
             logits_file = self._config.logits_tmp(split + (str(self._sub_model) if self._sub_model else ""))
             if tf.gfile.Exists(logits_file):
                 return
-            res = {task.name: self.evaluate_task(task, split, False) for task in self._tasks}
+            res = {task.name: self.evaluate_task(task, split, False, prepare_ensemble) for task in self._tasks}
             assert "squad" in res
             logits_info = {}
             for r in res["squad"]._all_results:
@@ -241,7 +241,7 @@ class ModelRunner(object):
             return res
         return {task.name: self.evaluate_task(task) for task in self._tasks}
 
-    def evaluate_task(self, task, split="dev", return_results=True):
+    def evaluate_task(self, task, split="dev", return_results=True, prepare_ensemble=False):  # prepare_ensemble for retain padding examples
         """Evaluate the current model."""
         utils.log("Evaluating", task.name)
         eval_input_fn, _ = self._preprocessor.prepare_predict([task], split)
@@ -249,7 +249,7 @@ class ModelRunner(object):
                                           yield_single_examples=True)
         scorer = task.get_scorer()
         for r in results:
-            if r["task_id"] != len(self._tasks):  # ignore padding examples
+            if r["task_id"] != len(self._tasks) or prepare_ensemble:  # ignore padding examples
                 r = utils.nest_dict(r, self._config.task_names)
                 scorer.update(r[task.name])
         if return_results:

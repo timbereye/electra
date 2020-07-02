@@ -251,9 +251,9 @@ class ModelRunner(object):
                                           yield_single_examples=True)
         scorer = task.get_scorer(split=split)
         for r in results:
-            print(r.keys())
+            print("rr:", r["squad_eid"])
             if r["task_id"] != len(self._tasks) or prepare_ensemble:  # ignore padding examples
-                print("rr:", r[task.name]["eid"])
+                print("done")
                 r = utils.nest_dict(r, self._config.task_names)
                 scorer.update(r[task.name])
         if return_results:

@@ -230,7 +230,7 @@ class ModelRunner(object):
             res = {task.name: self.evaluate_task(task, split, False, prepare_ensemble) for task in self._tasks}
             assert "squad" in res
             logits_info = {}
-            print(len(res["squad"]._all_results), res["squad"]._all_results[0])
+            print(len(res["squad"]._all_results), res["squad"]._all_results[-1])
             for r in res["squad"]._all_results:
                 unique_id = r.unique_id
                 print(unique_id)
@@ -249,9 +249,11 @@ class ModelRunner(object):
         eval_input_fn, _ = self._preprocessor.prepare_predict([task], split)
         results = self._estimator.predict(input_fn=eval_input_fn,
                                           yield_single_examples=True)
-        scorer = task.get_scorer()
+        scorer = task.get_scorer(split=split)
         for r in results:
+            print("rr:", r[task.name]["eid"])
             if r["task_id"] != len(self._tasks) or prepare_ensemble:  # ignore padding examples
+                print("done")
                 r = utils.nest_dict(r, self._config.task_names)
                 scorer.update(r[task.name])
         if return_results:

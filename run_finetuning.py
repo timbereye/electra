@@ -224,10 +224,10 @@ class ModelRunner(object):
 
     def evaluate(self, prepare_ensemble=False, split="dev"):
         if prepare_ensemble:
-            res = {task.name: self.evaluate_task(task, split, False) for task in self._tasks}
             logits_file = self._config.logits_tmp(split + (str(self._sub_model) if self._sub_model else ""))
             if tf.gfile.Exists(logits_file):
-                return res
+                return
+            res = {task.name: self.evaluate_task(task, split, False) for task in self._tasks}
             assert "squad" in res
             logits_info = {}
             for r in res["squad"]._all_results:

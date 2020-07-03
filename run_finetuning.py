@@ -216,6 +216,7 @@ class ModelRunner(object):
             train_batch_size=config.train_batch_size,
             eval_batch_size=config.eval_batch_size,
             predict_batch_size=config.predict_batch_size)
+        print(config.train_batch_size, config.eval_batch_size,config.eval_batch_size,)
 
     def train(self):
         utils.log("Training for {:} steps".format(self.train_steps))

@@ -97,6 +97,10 @@ class Preprocessor(object):
         else:
             steps = n_examples // batch_size
 
+        print("tfrecords_path:", tfrecords_path)
+        print("n_examples:", n_examples)
+        print("batch_size:", batch_size)
+
         return input_fn, steps
 
     def serialize_examples(self, examples, is_training, output_file, batch_size, split="train"):

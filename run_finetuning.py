@@ -216,7 +216,6 @@ class ModelRunner(object):
             train_batch_size=config.train_batch_size,
             eval_batch_size=config.eval_batch_size,
             predict_batch_size=config.predict_batch_size)
-        print(config.train_batch_size, config.eval_batch_size,config.eval_batch_size,)
 
     def train(self):
         utils.log("Training for {:} steps".format(self.train_steps))
@@ -254,9 +253,7 @@ class ModelRunner(object):
         scorer = task.get_scorer(split=split)
 
         for r in results:
-            print("rr:", r["squad_eid"])
             if r["task_id"] != len(self._tasks):  # ignore padding examples
-                print("done")
                 r = utils.nest_dict(r, self._config.task_names)
                 scorer.update(r[task.name])
         if return_results:

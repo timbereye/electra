@@ -97,10 +97,6 @@ class Preprocessor(object):
         else:
             steps = n_examples // batch_size
 
-        print("tfrecords_path:", tfrecords_path)
-        print("n_examples:", n_examples)
-        print("batch_size:", batch_size)
-
         return input_fn, steps
 
     def serialize_examples(self, examples, is_training, output_file, batch_size, split="train"):
@@ -187,7 +183,6 @@ class Preprocessor(object):
                 d = d.repeat()
                 d = d.shuffle(buffer_size=100)
             print("params:", params)
-            # print("batch_size:", params["train_batch_size"])
             return d.apply(
                 tf.data.experimental.map_and_batch(
                     self._decode_tfrecord,

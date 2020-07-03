@@ -186,6 +186,7 @@ class Preprocessor(object):
             if is_training:
                 d = d.repeat()
                 d = d.shuffle(buffer_size=100)
+            print("batch_size:", params["batch_size"])
             return d.apply(
                 tf.data.experimental.map_and_batch(
                     self._decode_tfrecord,

@@ -128,6 +128,7 @@ class Preprocessor(object):
                 n_examples += 1
 
         if prepare_ensemble and unique_ids:
+            utils.log("Writing unique ids")
             with tf.gfile.Open(unique_ids_file, 'wb') as fp:
                 dill.dump(unique_ids, fp)
 

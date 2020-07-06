@@ -110,10 +110,6 @@ class Preprocessor(object):
         unique_ids = None
         if prepare_ensemble and not tf.gfile.Exists(unique_ids_file):
             unique_ids = []
-        print("##############", unique_ids)
-        print(prepare_ensemble)
-        print(unique_ids_file)
-        print(tf.gfile.Exists(unique_ids_file))
 
         n_examples = 0
         with tf.io.TFRecordWriter(output_file) as writer:
@@ -130,7 +126,7 @@ class Preprocessor(object):
                 writer.write(self._make_tf_example(task_id=len(self._config.task_names))
                              .SerializeToString())
                 n_examples += 1
-        print("**************", len(unique_ids))
+
         if prepare_ensemble and unique_ids:
             utils.log("Writing unique ids")
             with tf.gfile.Open(unique_ids_file, 'wb') as fp:

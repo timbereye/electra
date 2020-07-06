@@ -111,6 +111,9 @@ class Preprocessor(object):
         if prepare_ensemble and not tf.gfile.Exists(unique_ids_file):
             unique_ids = []
         print("##############", unique_ids)
+        print(prepare_ensemble)
+        print(unique_ids_file)
+        print(tf.gfile.Exists(unique_ids_file))
 
         n_examples = 0
         with tf.io.TFRecordWriter(output_file) as writer:

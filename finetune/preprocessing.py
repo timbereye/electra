@@ -121,6 +121,11 @@ class Preprocessor(object):
                 writer.write(self._make_tf_example(task_id=len(self._config.task_names))
                              .SerializeToString())
                 n_examples += 1
+
+        if self.do_ensemble and _logits_fps:
+            for fp in _logits_fps:
+                fp.close()
+
         return n_examples
 
     def _example_to_tf_example(self, example, is_training, log=False, logits_fps=None):  # 流式读写pkl避免OOM
@@ -142,10 +147,6 @@ class Preprocessor(object):
                          task_name + "_answerable_logit" + "_" + str(i): example_logits_info[2]}
                     )
             yield self._make_tf_example(**example)
-
-        if self.do_ensemble and logits_fps:
-            for fp in logits_fps:
-                fp.close()
 
     def _make_tf_example(self, **kwargs):
         """Make a tf.train.Example from the provided features."""

@@ -128,7 +128,7 @@ class Preprocessor(object):
                 n_examples += 1
 
         if prepare_ensemble and unique_ids:
-            with open(unique_ids_file, 'wb') as fp:
+            with tf.gfile.Open(unique_ids_file, 'wb') as fp:
                 dill.dump(unique_ids, fp)
 
         if self.do_ensemble and _logits_fps:

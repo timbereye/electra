@@ -101,13 +101,11 @@ class Preprocessor(object):
 
     def serialize_examples(self, examples, is_training, output_file, batch_size, split="train"):
         """Convert a set of `InputExample`s to a TFRecord file."""
-        total_logits = []
+        _logits_fps = []
         if self.do_ensemble:  # 加载子模型生成的logits
             for i in range(self._config.ensemble_k):
-                with tf.gfile.Open(self._config.logits_tmp(split + str(i)),
-                                   'rb') as fp:
-                    logits = dill.load(fp)
-                    total_logits.append(logits)
+                _logits_fps.append(tf.gfile.Open(self._config.logits_tmp(split + str(i)), 'rb'))
+
         n_examples = 0
         with tf.io.TFRecordWriter(output_file) as writer:
             for (ex_index, example) in enumerate(examples):
@@ -115,7 +113,7 @@ class Preprocessor(object):
                     utils.log("Writing example {:} of {:}".format(
                         ex_index, len(examples)))
                 for tf_example in self._example_to_tf_example(
-                        example, is_training, log=self._config.log_examples and ex_index < 1, logits=total_logits):
+                        example, is_training, log=self._config.log_examples and ex_index < 1, logits_fps=_logits_fps):
                     writer.write(tf_example.SerializeToString())
                     n_examples += 1
             # add padding so the dataset is a multiple of batch_size
@@ -125,7 +123,7 @@ class Preprocessor(object):
                 n_examples += 1
         return n_examples
 
-    def _example_to_tf_example(self, example, is_training, log=False, logits=None):
+    def _example_to_tf_example(self, example, is_training, log=False, logits_fps=None):  # 流式读写pkl避免OOM
         task_name = example.task_name
         examples = self._name_to_task[example.task_name].featurize(
             example, is_training, log)
@@ -135,19 +133,19 @@ class Preprocessor(object):
             unique_id = example[task_name + "_eid"]
             if self.do_ensemble:
                 for i in range(self._config.ensemble_k):
-                    try:
-                        example_logits_info = logits[i][unique_id]
-                    except:
-                        print(i)
-                        print(len(logits[i]))
-                        print(unique_id, type(unique_id))
-                        print(logits[i].keys(), type(list(logits[i].keys())[0]))
+                    logits = dill.load(logits_fps[i])
+                    assert unique_id in logits
+                    example_logits_info = logits[unique_id]
                     example.update(
                         {task_name + "_start_logits" + "_" + str(i): example_logits_info[0],
                          task_name + "_end_logits" + "_" + str(i): example_logits_info[1],
                          task_name + "_answerable_logit" + "_" + str(i): example_logits_info[2]}
                     )
             yield self._make_tf_example(**example)
+
+        if self.do_ensemble and logits_fps:
+            for fp in logits_fps:
+                fp.close()
 
     def _make_tf_example(self, **kwargs):
         """Make a tf.train.Example from the provided features."""

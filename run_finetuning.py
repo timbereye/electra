@@ -224,26 +224,10 @@ class ModelRunner(object):
 
     def evaluate(self, prepare_ensemble=False, split="dev"):
         if prepare_ensemble:
-            logits_file = self._config.logits_tmp(split + (str(self._sub_model) if self._sub_model else ""))
-            if tf.gfile.Exists(logits_file):
-                return
-            res = {task.name: self.evaluate_task(task, split, False) for task in self._tasks}
-            assert "squad" in res
-            logits_info = {}
-            unique_ids = []
-            for r in res["squad"]._all_results:
-                unique_id = r.unique_id
-                unique_ids.append(unique_id)
-                start_logits = r.start_logits
-                end_logits = r.end_logits
-                answerable_logit = r.answerable_logit
-                logits_info[unique_id] = [start_logits, end_logits, answerable_logit]
-            with tf.gfile.Open(logits_file, 'wb') as fp:
-                dill.dump(logits_info, fp)
-            return res
+            return {task.name: self.evaluate_task(task, split, False, prepare_ensemble=prepare_ensemble) for task in self._tasks}
         return {task.name: self.evaluate_task(task) for task in self._tasks}
 
-    def evaluate_task(self, task, split="dev", return_results=True):  # prepare_ensemble for retain padding examples
+    def evaluate_task(self, task, split="dev", return_results=True, prepare_ensemble=False):
         """Evaluate the current model."""
         utils.log("Evaluating", task.name)
         eval_input_fn, _ = self._preprocessor.prepare_predict([task], split)
@@ -251,11 +235,29 @@ class ModelRunner(object):
                                           yield_single_examples=True)
 
         scorer = task.get_scorer(split=split)
+        logits_need_generate = True
+        logits_file = self._config.logits_tmp(split + (str(self._sub_model) if self._sub_model else ""))
+        if prepare_ensemble:
+            if tf.gfile.Exists(logits_file):
+                logits_need_generate = False
 
+        logits_need_generate = task.name == "squad" and prepare_ensemble and logits_need_generate
+        if logits_need_generate:
+            fp = tf.gfile.Open(logits_file, 'wb')
         for r in results:
             if r["task_id"] != len(self._tasks):  # ignore padding examples
                 r = utils.nest_dict(r, self._config.task_names)
-                scorer.update(r[task.name])
+                if logits_need_generate:
+                    unique_id = r["squad"]["eid"]
+                    start_logits = r["squad"]["start_logits"]
+                    end_logits = r["squad"]["end_logits"]
+                    answerable_logit = r["squad"]["answerable_logit"]
+                    dill.dump({unique_id: [start_logits, end_logits, answerable_logit]}, fp)
+                else:
+                    scorer.update(r[task.name])  # may OOM with train data for ensemble
+        if logits_need_generate:
+            fp.close()
+
         if return_results:
             utils.log(task.name + ": " + scorer.results_str())
             utils.log()

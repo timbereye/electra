@@ -56,10 +56,10 @@ class Preprocessor(object):
     def prepare_train(self, sub=None):
         return self._serialize_dataset(self._tasks, True, "train", sub)
 
-    def prepare_predict(self, tasks, split):
-        return self._serialize_dataset(tasks, False, split)
+    def prepare_predict(self, tasks, split, prepare_ensemble=False):  # 在生成train.json/dev.json的feature时保存unique id信息，用于流式生成logits的顺序控制
+        return self._serialize_dataset(tasks, False, split, prepare_ensemble=prepare_ensemble)
 
-    def _serialize_dataset(self, tasks, is_training, split, sub=None):
+    def _serialize_dataset(self, tasks, is_training, split, sub=None, prepare_ensemble=False):
         """Write out the dataset as tfrecords."""
         dataset_name = "_".join(sorted([task.name for task in tasks]))
         dataset_name += "_" + split
@@ -88,7 +88,7 @@ class Preprocessor(object):
                 random.shuffle(examples)
             utils.mkdir(tfrecords_path.rsplit("/", 1)[0])
             n_examples = self.serialize_examples(
-                examples, is_training, tfrecords_path, batch_size, split=split)
+                examples, is_training, tfrecords_path, batch_size, split=split, prepare_ensemble=prepare_ensemble)
             utils.write_json({"n_examples": n_examples}, metadata_path)
 
         input_fn = self._input_fn_builder(tfrecords_path, is_training)
@@ -99,12 +99,17 @@ class Preprocessor(object):
 
         return input_fn, steps
 
-    def serialize_examples(self, examples, is_training, output_file, batch_size, split="train"):
+    def serialize_examples(self, examples, is_training, output_file, batch_size, split="train", prepare_ensemble=False):
         """Convert a set of `InputExample`s to a TFRecord file."""
         _logits_fps = []
         if self.do_ensemble:  # 加载子模型生成的logits
             for i in range(self._config.ensemble_k):
                 _logits_fps.append(tf.gfile.Open(self._config.logits_tmp(split + str(i)), 'rb'))
+
+        unique_ids_file = self._config.unique_ids_tmp(split)
+        unique_ids = None
+        if prepare_ensemble and not tf.gfile.Exists(unique_ids_file):
+            unique_ids = []
 
         n_examples = 0
         with tf.io.TFRecordWriter(output_file) as writer:
@@ -113,7 +118,7 @@ class Preprocessor(object):
                     utils.log("Writing example {:} of {:}".format(
                         ex_index, len(examples)))
                 for tf_example in self._example_to_tf_example(
-                        example, is_training, log=self._config.log_examples and ex_index < 1, logits_fps=_logits_fps):
+                        example, is_training, log=self._config.log_examples and ex_index < 1, logits_fps=_logits_fps, unique_ids=unique_ids):
                     writer.write(tf_example.SerializeToString())
                     n_examples += 1
             # add padding so the dataset is a multiple of batch_size
@@ -122,13 +127,17 @@ class Preprocessor(object):
                              .SerializeToString())
                 n_examples += 1
 
+        if prepare_ensemble and unique_ids:
+            with open(unique_ids_file, 'wb') as fp:
+                dill.dump(unique_ids, fp)
+
         if self.do_ensemble and _logits_fps:
             for fp in _logits_fps:
                 fp.close()
 
         return n_examples
 
-    def _example_to_tf_example(self, example, is_training, log=False, logits_fps=None):  # 流式读写pkl避免OOM
+    def _example_to_tf_example(self, example, is_training, log=False, logits_fps=None, unique_ids=None):  # 流式读写pkl避免OOM
         task_name = example.task_name
         examples = self._name_to_task[example.task_name].featurize(
             example, is_training, log)
@@ -136,6 +145,8 @@ class Preprocessor(object):
             examples = [examples]
         for example in examples:
             unique_id = example[task_name + "_eid"]
+            if unique_ids is not None:
+                unique_ids.append(unique_id)
             if self.do_ensemble:
                 for i in range(self._config.ensemble_k):
                     logits = dill.load(logits_fps[i])

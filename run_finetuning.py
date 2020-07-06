@@ -175,10 +175,10 @@ class ModelRunner(object):
     """Fine-tunes a model on a supervised task."""
 
     def __init__(self, config: configure_finetuning.FinetuningConfig, tasks,
-                 pretraining_config=None, sub_data=None, sub_model=None, do_ensemble=False):
+                 pretraining_config=None, sub_data=None, sub_model=None, do_ensemble=False, prepare_ensemble=False):
         self._config = config
         self._tasks = tasks
-        self._preprocessor = preprocessing.Preprocessor(config, self._tasks, do_ensemble=do_ensemble)
+        self._preprocessor = preprocessing.Preprocessor(config, self._tasks, do_ensemble=do_ensemble, prepare_ensemble=prepare_ensemble)
         self._sub_data = sub_data
         self._sub_model = sub_model
 
@@ -230,9 +230,8 @@ class ModelRunner(object):
     def evaluate_task(self, task, split="dev", return_results=True, prepare_ensemble=False):
         """Evaluate the current model."""
         utils.log("Evaluating", task.name)
-        eval_input_fn, _ = self._preprocessor.prepare_predict([task], split)
-        results = self._estimator.predict(input_fn=eval_input_fn,
-                                          yield_single_examples=True)
+        eval_input_fn, _ = self._preprocessor.prepare_predict([task], split, prepare_ensemble=prepare_ensemble)
+        results = self._estimator.predict(input_fn=eval_input_fn, yield_single_examples=True)
 
         scorer = task.get_scorer(split=split)
         logits_need_generate = True
@@ -244,6 +243,9 @@ class ModelRunner(object):
         logits_need_generate = task.name == "squad" and prepare_ensemble and logits_need_generate
         if logits_need_generate:
             fp = tf.gfile.Open(logits_file, 'wb')
+            with tf.gfile.Open(self._config.unique_ids_tmp(split), 'rb') as fpu:
+                unique_ids = dill.load(fpu)
+        logits_tmp = {}  # 缓存logits, 用于有序写入
         for r in results:
             if r["task_id"] != len(self._tasks):  # ignore padding examples
                 r = utils.nest_dict(r, self._config.task_names)
@@ -252,9 +254,17 @@ class ModelRunner(object):
                     start_logits = r["squad"]["start_logits"]
                     end_logits = r["squad"]["end_logits"]
                     answerable_logit = r["squad"]["answerable_logit"]
-                    dill.dump({unique_id: [start_logits, end_logits, answerable_logit]}, fp)
+                    logits_tmp.update({unique_id: [start_logits, end_logits, answerable_logit]})
+                    while logits_tmp and unique_ids:
+                        uid = unique_ids[0]
+                        if uid in logits_tmp:
+                            dill.dump({uid: logits_tmp[uid]}, fp)
+                            del unique_ids[0], logits_tmp[uid]
+                        else:
+                            break
                 else:
                     scorer.update(r[task.name])  # may OOM with train data for ensemble
+
         if logits_need_generate:
             fp.close()
 

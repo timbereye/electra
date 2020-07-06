@@ -175,10 +175,10 @@ class ModelRunner(object):
     """Fine-tunes a model on a supervised task."""
 
     def __init__(self, config: configure_finetuning.FinetuningConfig, tasks,
-                 pretraining_config=None, sub_data=None, sub_model=None, do_ensemble=False, prepare_ensemble=False):
+                 pretraining_config=None, sub_data=None, sub_model=None, do_ensemble=False):
         self._config = config
         self._tasks = tasks
-        self._preprocessor = preprocessing.Preprocessor(config, self._tasks, do_ensemble=do_ensemble, prepare_ensemble=prepare_ensemble)
+        self._preprocessor = preprocessing.Preprocessor(config, self._tasks, do_ensemble=do_ensemble)
         self._sub_data = sub_data
         self._sub_model = sub_model
 

@@ -336,23 +336,28 @@ def run_finetuning(config: configure_finetuning.FinetuningConfig):
             model_runner.train()
             utils.log()
         # getnerate train logits
+        config.do_train = False
         for i in range(config.ensemble_k):
             heading("Generate train logits: {}".format(i))
             model_runner = ModelRunner(config, tasks, sub_model=str(i))
             model_runner.evaluate(prepare_ensemble=True, split="train")
             utils.log()
         # train ensemble model
+        config.do_train = True
         model_runner = ModelRunner(config, tasks, do_ensemble=True)
         heading("Training ensemble model")
         model_runner.train()
         utils.log()
 
     if config.do_eval:
+        # getnerate dev logits
+        config.do_train = False
         for i in range(config.ensemble_k):
             heading("Generate dev logits: {}".format(i))
             model_runner = ModelRunner(config, tasks, sub_model=str(i))
             model_runner.evaluate(prepare_ensemble=True, split="dev")
             utils.log()
+        config.do_train = True
         model_runner = ModelRunner(config, tasks, do_ensemble=True)
         heading("Run dev set evaluation")
         results.append(model_runner.evaluate())

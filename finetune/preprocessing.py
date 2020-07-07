@@ -84,8 +84,8 @@ class Preprocessor(object):
             for task in tasks:
                 task_examples = task.get_examples(split, sub)
                 examples += task_examples
-            # if is_training:
-            #     random.shuffle(examples)
+            if is_training and sub:  # 子模型可以shuffle, 父模型不能shuffle，因为要保持feature与logits的顺序一致
+                random.shuffle(examples)
             utils.mkdir(tfrecords_path.rsplit("/", 1)[0])
             n_examples = self.serialize_examples(
                 examples, is_training, tfrecords_path, batch_size, split=split, prepare_ensemble=prepare_ensemble)

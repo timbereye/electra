@@ -151,7 +151,7 @@ class Preprocessor(object):
             if self.do_ensemble:
                 for i in range(self._config.ensemble_k):
                     logits = dill.load(logits_fps[i])
-                    assert unique_id in logits
+                    assert unique_id in logits, "unique_id: {} | logits: {}".format(unique_id, logits)
                     example_logits_info = logits[unique_id]
                     example.update(
                         {task_name + "_start_logits" + "_" + str(i): example_logits_info[0],

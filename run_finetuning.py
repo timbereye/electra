@@ -234,13 +234,11 @@ class ModelRunner(object):
         results = self._estimator.predict(input_fn=eval_input_fn, yield_single_examples=True)
 
         scorer = task.get_scorer(split=split)
-        logits_need_generate = True
         logits_file = self._config.logits_tmp(split + (str(self._sub_model) if self._sub_model else ""))
-        if prepare_ensemble:
-            if tf.gfile.Exists(logits_file):
-                logits_need_generate = False
+        if prepare_ensemble and tf.gfile.Exists(logits_file):  # logits exists.
+            return scorer
 
-        logits_need_generate = task.name == "squad" and prepare_ensemble and logits_need_generate
+        logits_need_generate = task.name == "squad" and prepare_ensemble
         if logits_need_generate:
             fp = tf.gfile.Open(logits_file, 'wb')
             with tf.gfile.Open(self._config.unique_ids_tmp(split), 'rb') as fpu:

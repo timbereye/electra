@@ -84,8 +84,8 @@ class Preprocessor(object):
             for task in tasks:
                 task_examples = task.get_examples(split, sub)
                 examples += task_examples
-            if is_training:
-                random.shuffle(examples)
+            # if is_training:
+            #     random.shuffle(examples)
             utils.mkdir(tfrecords_path.rsplit("/", 1)[0])
             n_examples = self.serialize_examples(
                 examples, is_training, tfrecords_path, batch_size, split=split, prepare_ensemble=prepare_ensemble)
@@ -192,8 +192,8 @@ class Preprocessor(object):
             d = tf.data.TFRecordDataset(input_file)
             if is_training:
                 d = d.repeat()
-                d = d.shuffle(buffer_size=100)
-            print("params:", params)
+                d = d.shuffle(buffer_size=1000)
+
             return d.apply(
                 tf.data.experimental.map_and_batch(
                     self._decode_tfrecord,

@@ -35,6 +35,7 @@ from model import tokenization
 from util import utils
 import numpy as np
 from functools import reduce
+from model.modeling import attention_layer, create_attention_mask_from_input_mask
 
 
 class QAExample(task.Example):
@@ -518,6 +519,21 @@ class QATask(task.Task):
         answer_mask *= tf.cast(features["segment_ids"], tf.float32)
         answer_mask += tf.one_hot(0, seq_length)
 
+        def att_weighted_logits(logits_list, scope_name="att_w_logits"):
+            with tf.variable_scope(scope_name):
+                logits_st = tf.stack(logits_list, axis=1)  # [bs, k, seq_len]
+                logits_att, _ = attention_layer(
+                    from_tensor=logits_st,
+                    to_tensor=logits_st,
+                    attention_mask=create_attention_mask_from_input_mask(features["segment_ids"], features["input_mask"]),
+                    size_per_head=seq_length,
+                    attention_probs_dropout_prob=0.1,
+                    batch_size=batch_size,
+                    from_seq_length=len(logits_list),
+                    to_seq_length=len(logits_list)
+                )
+                return tf.reduce_mean(logits_att, axis=1)
+
         start_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
 
         start_top_log_probs = tf.zeros([batch_size, self.config.beam_size])
@@ -616,18 +632,19 @@ class QATask(task.Task):
         losses = (start_loss + end_loss) / 2.0
 
         # plausible answer loss
-        plau_logits = tf.layers.dense(final_hidden, 2)
-        plau_logits = tf.reshape(plau_logits, [batch_size, seq_length, 2])
-        plau_logits = tf.transpose(plau_logits, [2, 0, 1])
-        unstacked_logits = tf.unstack(plau_logits, axis=0)
-        (plau_start_logits, plau_end_logits) = (unstacked_logits[0], unstacked_logits[1])
-        plau_start_logits += 1000.0 * (answer_mask - 1)
-        plau_end_logits += 1000.0 * (answer_mask - 1)
-        plau_start_positions = features[self.name + "_plau_answer_start"]
-        plau_end_positions = features[self.name + "_plau_answer_end"]
-        plau_start_loss = compute_loss(plau_start_logits, plau_start_positions)
-        plau_end_loss = compute_loss(plau_end_logits, plau_end_positions)
-        losses += (plau_start_loss + plau_end_loss) / 2.0
+        if not do_ensemble:
+            plau_logits = tf.layers.dense(final_hidden, 2)
+            plau_logits = tf.reshape(plau_logits, [batch_size, seq_length, 2])
+            plau_logits = tf.transpose(plau_logits, [2, 0, 1])
+            unstacked_logits = tf.unstack(plau_logits, axis=0)
+            (plau_start_logits, plau_end_logits) = (unstacked_logits[0], unstacked_logits[1])
+            plau_start_logits += 1000.0 * (answer_mask - 1)
+            plau_end_logits += 1000.0 * (answer_mask - 1)
+            plau_start_positions = features[self.name + "_plau_answer_start"]
+            plau_end_positions = features[self.name + "_plau_answer_end"]
+            plau_start_loss = compute_loss(plau_start_logits, plau_start_positions)
+            plau_end_loss = compute_loss(plau_end_logits, plau_end_positions)
+            losses += (plau_start_loss + plau_end_loss) / 2.0
 
         answerable_logit = tf.zeros([batch_size])
         if self.config.answerable_classifier:

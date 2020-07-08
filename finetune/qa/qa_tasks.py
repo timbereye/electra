@@ -511,7 +511,7 @@ class QATask(task.Task):
                               percent_done, do_ensemble=False):
         final_hidden = bert_model.get_sequence_output()
 
-        final_hidden_shape = modeling.get_shape_list(final_hidden, expected_rank=3)
+        final_hidden_shape = modeling.get_shape_list(features["input_mask"], expected_rank=2)
         batch_size = final_hidden_shape[0]
         seq_length = final_hidden_shape[1]
 

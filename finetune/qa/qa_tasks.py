@@ -509,8 +509,6 @@ class QATask(task.Task):
 
     def get_prediction_module(self, bert_model, features, is_training,
                               percent_done, do_ensemble=False):
-        final_hidden = bert_model.get_sequence_output()
-
         final_hidden_shape = modeling.get_shape_list(features["input_mask"], expected_rank=2)
         batch_size = final_hidden_shape[0]
         seq_length = final_hidden_shape[1]
@@ -617,6 +615,7 @@ class QATask(task.Task):
                 eid=features[self.name + "_eid"],
             )
 
+        final_hidden = bert_model.get_sequence_output()
         start_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
 
         start_top_log_probs = tf.zeros([batch_size, self.config.beam_size])

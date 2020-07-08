@@ -70,7 +70,7 @@ class FinetuningModel(object):
         for task in tasks:
             with tf.variable_scope("task_specific/" + task.name, reuse=tf.AUTO_REUSE):
                 task_losses, task_outputs = task.get_prediction_module(
-                    bert_model, features, is_training, percent_done)
+                    bert_model, features, is_training, percent_done, do_ensemble=do_ensemble)
             if not do_ensemble:
                 grad, = tf.gradients(task_losses, bert_model.token_embeddings)
                 grad = tf.stop_gradient(grad)

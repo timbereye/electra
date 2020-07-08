@@ -567,16 +567,15 @@ class QATask(task.Task):
             start_positions = features[self.name + "_start_positions"]
             end_positions = features[self.name + "_end_positions"]
 
-            if do_ensemble:
-                end_logits_list = []
-                for i in range(self.config.ensemble_k):
-                    end_logits_sub = features[self.name + "_end_logits" + "_" + str(i)]
-                    end_logits_list.append(end_logits_sub)
-                end_alpha = tf.get_variable(
-                    "end_alpha", [self.config.ensemble_k], initializer=tf.zeros_initializer())
-                end_alpha = tf.nn.softmax(end_alpha)
-                end_logits_st = tf.stack(end_logits_list, axis=0)
-                end_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", end_logits_st, end_alpha), axis=0)
+            end_logits_list = []
+            for i in range(self.config.ensemble_k):
+                end_logits_sub = features[self.name + "_end_logits" + "_" + str(i)]
+                end_logits_list.append(end_logits_sub)
+            end_alpha = tf.get_variable(
+                "end_alpha", [self.config.ensemble_k], initializer=tf.zeros_initializer())
+            end_alpha = tf.nn.softmax(end_alpha)
+            end_logits_st = tf.stack(end_logits_list, axis=0)
+            end_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", end_logits_st, end_alpha), axis=0)
 
             start_loss = compute_loss(start_logits, start_positions)
             end_loss = compute_loss(end_logits, end_positions)

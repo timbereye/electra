@@ -41,7 +41,7 @@ class FinetuningModel(object):
     """Finetuning model with support for multi-task training."""
 
     def __init__(self, config: configure_finetuning.FinetuningConfig, tasks,
-                 is_training, features, num_train_steps):
+                 is_training, features, num_train_steps, do_ensemble=False):
         # Create a shared transformer encoder
         bert_config = training_utils.get_bert_config(config)
         self.bert_config = bert_config
@@ -51,14 +51,16 @@ class FinetuningModel(object):
             bert_config.intermediate_size = 144 * 4
             bert_config.num_attention_heads = 4
         assert config.max_seq_length <= bert_config.max_position_embeddings
-        bert_model = modeling.BertModel(
-            bert_config=bert_config,
-            is_training=is_training,
-            input_ids=features["input_ids"],
-            input_mask=features["input_mask"],
-            token_type_ids=features["segment_ids"],
-            use_one_hot_embeddings=config.use_tpu,
-            embedding_size=config.embedding_size)
+        bert_model = None
+        if not do_ensemble:
+            bert_model = modeling.BertModel(
+                bert_config=bert_config,
+                is_training=is_training,
+                input_ids=features["input_ids"],
+                input_mask=features["input_mask"],
+                token_type_ids=features["segment_ids"],
+                use_one_hot_embeddings=config.use_tpu,
+                embedding_size=config.embedding_size)
         percent_done = (tf.cast(tf.train.get_or_create_global_step(), tf.float32) /
                         tf.cast(num_train_steps, tf.float32))
 
@@ -69,28 +71,30 @@ class FinetuningModel(object):
             with tf.variable_scope("task_specific/" + task.name, reuse=tf.AUTO_REUSE):
                 task_losses, task_outputs = task.get_prediction_module(
                     bert_model, features, is_training, percent_done)
+            if not do_ensemble:
+                grad, = tf.gradients(task_losses, bert_model.token_embeddings)
+                grad = tf.stop_gradient(grad)
+                perturb = self._scale_l2(grad, 0.125)
 
-            grad, = tf.gradients(task_losses, bert_model.token_embeddings)
-            grad = tf.stop_gradient(grad)
-            perturb = self._scale_l2(grad, 0.125)
+                adv_token_embeddings = bert_model.token_embeddings + perturb
 
-            adv_token_embeddings = bert_model.token_embeddings + perturb
+                bert_model_adv = modeling.BertModel(
+                    bert_config=bert_config,
+                    is_training=is_training,
+                    input_ids=features["input_ids"],
+                    input_mask=features["input_mask"],
+                    token_type_ids=features["segment_ids"],
+                    use_one_hot_embeddings=config.use_tpu,
+                    embedding_size=config.embedding_size,
+                    input_embeddings=adv_token_embeddings)
 
-            bert_model_adv = modeling.BertModel(
-                bert_config=bert_config,
-                is_training=is_training,
-                input_ids=features["input_ids"],
-                input_mask=features["input_mask"],
-                token_type_ids=features["segment_ids"],
-                use_one_hot_embeddings=config.use_tpu,
-                embedding_size=config.embedding_size,
-                input_embeddings=adv_token_embeddings)
+                with tf.variable_scope("task_specific/" + task.name, reuse=tf.AUTO_REUSE):
+                    task_adv_losses, task_adv_outputs = task.get_prediction_module(
+                        bert_model_adv, features, is_training, percent_done)
 
-            with tf.variable_scope("task_specific/" + task.name, reuse=tf.AUTO_REUSE):
-                task_adv_losses, task_adv_outputs = task.get_prediction_module(
-                    bert_model_adv, features, is_training, percent_done)
-
-            total_loss = 0.875 * task_losses + 0.125 * task_adv_losses
+                total_loss = 0.875 * task_losses + 0.125 * task_adv_losses
+            else:
+                total_loss = task_losses
             losses.append(total_loss)
             self.outputs[task.name] = task_outputs
         self.loss = tf.reduce_sum(
@@ -111,7 +115,7 @@ class FinetuningModel(object):
 
 
 def model_fn_builder(config: configure_finetuning.FinetuningConfig, tasks,
-                     num_train_steps, pretraining_config=None):
+                     num_train_steps, pretraining_config=None, do_ensemble=False):
     """Returns `model_fn` closure for TPUEstimator."""
 
     def model_fn(features, labels, mode, params):
@@ -119,7 +123,7 @@ def model_fn_builder(config: configure_finetuning.FinetuningConfig, tasks,
         utils.log("Building model...")
         is_training = (mode == tf.estimator.ModeKeys.TRAIN)
         model = FinetuningModel(
-            config, tasks, is_training, features, num_train_steps)
+            config, tasks, is_training, features, num_train_steps, do_ensemble=do_ensemble)
 
         # Load pre-trained weights from checkpoint
         init_checkpoint = config.init_checkpoint
@@ -208,7 +212,8 @@ class ModelRunner(object):
             config=config,
             tasks=self._tasks,
             num_train_steps=self.train_steps,
-            pretraining_config=pretraining_config)
+            pretraining_config=pretraining_config,
+            do_ensemble=do_ensemble)
         self._estimator = tf.estimator.tpu.TPUEstimator(
             use_tpu=config.use_tpu,
             model_fn=model_fn,

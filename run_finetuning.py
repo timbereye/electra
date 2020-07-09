@@ -51,16 +51,16 @@ class FinetuningModel(object):
             bert_config.intermediate_size = 144 * 4
             bert_config.num_attention_heads = 4
         assert config.max_seq_length <= bert_config.max_position_embeddings
-        bert_model = None
-        if not do_ensemble:
-            bert_model = modeling.BertModel(
-                bert_config=bert_config,
-                is_training=is_training,
-                input_ids=features["input_ids"],
-                input_mask=features["input_mask"],
-                token_type_ids=features["segment_ids"],
-                use_one_hot_embeddings=config.use_tpu,
-                embedding_size=config.embedding_size)
+        # bert_model = None
+        # if not do_ensemble:
+        bert_model = modeling.BertModel(
+            bert_config=bert_config,
+            is_training=is_training,
+            input_ids=features["input_ids"],
+            input_mask=features["input_mask"],
+            token_type_ids=features["segment_ids"],
+            use_one_hot_embeddings=config.use_tpu,
+            embedding_size=config.embedding_size)
         percent_done = (tf.cast(tf.train.get_or_create_global_step(), tf.float32) /
                         tf.cast(num_train_steps, tf.float32))
 

@@ -549,12 +549,12 @@ class QATask(task.Task):
                 for i in range(self.config.ensemble_k):
                     start_logits_sub = features[self.name + "_start_logits" + "_" + str(i)]
                     start_logits_list.append(start_logits_sub)
-                start_logits = att_weighted_logits(start_logits_list, scope_name="start_logits_weights")
-                # start_alpha = tf.get_variable(
-                #     "start_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
-                # start_alpha = tf.nn.softmax(start_alpha)
-                # start_logits_st = tf.stack(start_logits_list, axis=0)
-                # start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
+                # start_logits = att_weighted_logits(start_logits_list, scope_name="start_logits_weights")
+                start_alpha = tf.get_variable(
+                    "start_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
+                start_alpha = tf.nn.softmax(start_alpha)
+                start_logits_st = tf.stack(start_logits_list, axis=0)
+                start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
 
             start_log_probs = tf.nn.log_softmax(start_logits)
             start_top_log_probs, start_top_index = tf.nn.top_k(

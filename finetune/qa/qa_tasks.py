@@ -507,9 +507,241 @@ class QATask(task.Task):
             all_features.append(features)
         return all_features
 
+    def get_prediction_module(self, bert_model, features, is_training,
+                              percent_done, do_ensemble=False):
+        final_hidden_shape = modeling.get_shape_list(features["input_mask"], expected_rank=2)
+        batch_size = final_hidden_shape[0]
+        seq_length = final_hidden_shape[1]
+
+        answer_mask = tf.cast(features["input_mask"], tf.float32)
+        answer_mask *= tf.cast(features["segment_ids"], tf.float32)
+        answer_mask += tf.one_hot(0, seq_length)
+
+        def att_weighted_logits(logits_list, scope_name="att_w_logits"):
+            with tf.variable_scope(scope_name):
+                logits_st = tf.stack(logits_list, axis=1)  # [bs, k, seq_len]
+                logits_att, _ = attention_layer(
+                    from_tensor=logits_st,
+                    to_tensor=logits_st,
+                    attention_mask=create_attention_mask_from_input_mask(features["segment_ids"], features["input_mask"]),
+                    size_per_head=seq_length,
+                    attention_probs_dropout_prob=0.1,
+                    batch_size=batch_size,
+                    from_seq_length=len(logits_list),
+                    to_seq_length=len(logits_list)
+                )
+                return tf.reduce_mean(logits_att, axis=1)
+
+        if do_ensemble:  # 父模型不要lm
+            start_top_log_probs = tf.zeros([batch_size, self.config.beam_size])
+            start_top_index = tf.zeros([batch_size, self.config.beam_size], tf.int32)
+            end_top_log_probs = tf.zeros([batch_size, self.config.beam_size,
+                                          self.config.beam_size])
+            end_top_index = tf.zeros([batch_size, self.config.beam_size,
+                                      self.config.beam_size], tf.int32)
+            if self.config.joint_prediction:
+                start_logits_list = []
+                for i in range(self.config.ensemble_k):
+                    start_logits_sub = features[self.name + "_start_logits" + "_" + str(i)]
+                    start_logits_list.append(start_logits_sub)
+                start_alpha = tf.get_variable(
+                    "start_alpha", [self.config.ensemble_k], initializer=tf.zeros_initializer())
+                start_alpha = tf.nn.softmax(start_alpha)
+                start_logits_st = tf.stack(start_logits_list, axis=0)
+                start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
+
+                start_log_probs = tf.nn.log_softmax(start_logits)
+                start_top_log_probs, start_top_index = tf.nn.top_k(
+                    start_log_probs, k=self.config.beam_size)
+
+            else:
+                pass
+
+            def compute_loss(logits, positions):
+                one_hot_positions = tf.one_hot(
+                    positions, depth=seq_length, dtype=tf.float32)
+                log_probs = tf.nn.log_softmax(logits, axis=-1)
+                loss = -tf.reduce_sum(one_hot_positions * log_probs, axis=-1)
+                return loss
+
+            start_positions = features[self.name + "_start_positions"]
+            end_positions = features[self.name + "_end_positions"]
+
+            end_logits_list = []
+            for i in range(self.config.ensemble_k):
+                end_logits_sub = features[self.name + "_end_logits" + "_" + str(i)]
+                end_logits_list.append(end_logits_sub)
+            end_alpha = tf.get_variable(
+                "end_alpha", [self.config.ensemble_k], initializer=tf.zeros_initializer())
+            end_alpha = tf.nn.softmax(end_alpha)
+            end_logits_st = tf.stack(end_logits_list, axis=0)
+            end_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", end_logits_st, end_alpha), axis=0)
+
+            start_loss = compute_loss(start_logits, start_positions)
+            end_loss = compute_loss(end_logits, end_positions)
+
+            losses = (start_loss + end_loss) / 2.0
+
+            answerable_logit = tf.zeros([batch_size])
+            if self.config.answerable_classifier:
+                answerable_logit_list = []
+                for i in range(self.config.ensemble_k):
+                    answerable_logit_sub = features[self.name + "_answerable_logit" + "_" + str(i)]
+                    answerable_logit_list.append(answerable_logit_sub)
+                answerable_alpha = tf.get_variable(
+                    "answerable_alpha", [self.config.ensemble_k], initializer=tf.zeros_initializer())
+                answerable_alpha = tf.nn.softmax(answerable_alpha)
+                answerable_logit_st = tf.stack(answerable_logit_list, axis=0)
+                answerable_logit = tf.reduce_sum(tf.einsum("ij,i->ij", answerable_logit_st, answerable_alpha),
+                                                     axis=0)
+
+                answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
+                    labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
+                    logits=answerable_logit)
+                losses += answerable_loss * self.config.answerable_weight
+
+            return losses, dict(
+                loss=losses,
+                start_logits=start_logits,
+                end_logits=end_logits,
+                answerable_logit=answerable_logit,
+                start_positions=features[self.name + "_start_positions"],
+                end_positions=features[self.name + "_end_positions"],
+                start_top_log_probs=start_top_log_probs,
+                start_top_index=start_top_index,
+                end_top_log_probs=end_top_log_probs,
+                end_top_index=end_top_index,
+                eid=features[self.name + "_eid"],
+            )
+
+        final_hidden = bert_model.get_sequence_output()
+        start_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
+
+        start_top_log_probs = tf.zeros([batch_size, self.config.beam_size])
+        start_top_index = tf.zeros([batch_size, self.config.beam_size], tf.int32)
+        end_top_log_probs = tf.zeros([batch_size, self.config.beam_size,
+                                      self.config.beam_size])
+        end_top_index = tf.zeros([batch_size, self.config.beam_size,
+                                  self.config.beam_size], tf.int32)
+        if self.config.joint_prediction:
+            start_logits += 1000.0 * (answer_mask - 1)
+            start_log_probs = tf.nn.log_softmax(start_logits)
+            start_top_log_probs, start_top_index = tf.nn.top_k(
+                start_log_probs, k=self.config.beam_size)
+
+            if not is_training:
+                # batch, beam, length, hidden
+                end_features = tf.tile(tf.expand_dims(final_hidden, 1),
+                                       [1, self.config.beam_size, 1, 1])
+                # batch, beam, length
+                start_index = tf.one_hot(start_top_index,
+                                         depth=seq_length, axis=-1, dtype=tf.float32)
+                # batch, beam, hidden
+                start_features = tf.reduce_sum(
+                    tf.expand_dims(final_hidden, 1) *
+                    tf.expand_dims(start_index, -1), axis=-2)
+                # batch, beam, length, hidden
+                start_features = tf.tile(tf.expand_dims(start_features, 2),
+                                         [1, 1, seq_length, 1])
+            else:
+                start_index = tf.one_hot(
+                    features[self.name + "_start_positions"], depth=seq_length,
+                    axis=-1, dtype=tf.float32)
+                start_features = tf.reduce_sum(tf.expand_dims(start_index, -1) *
+                                               final_hidden, axis=1)
+                start_features = tf.tile(tf.expand_dims(start_features, 1),
+                                         [1, seq_length, 1])
+                end_features = final_hidden
+
+            final_repr = tf.concat([start_features, end_features], -1)
+            final_repr = tf.layers.dense(final_repr, 512, activation=modeling.gelu,
+                                         name="qa_hidden")
+            # batch, beam, length (batch, length when training)
+            end_logits = tf.squeeze(tf.layers.dense(final_repr, 1), -1,
+                                    name="qa_logits")
+            if is_training:
+                end_logits += 1000.0 * (answer_mask - 1)
+            else:
+                end_logits += tf.expand_dims(1000.0 * (answer_mask - 1), 1)
+
+            if not is_training:
+                end_log_probs = tf.nn.log_softmax(end_logits)
+                end_top_log_probs, end_top_index = tf.nn.top_k(
+                    end_log_probs, k=self.config.beam_size)
+                end_logits = tf.zeros([batch_size, seq_length])
+        else:
+            end_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
+            start_logits += 1000.0 * (answer_mask - 1)
+            end_logits += 1000.0 * (answer_mask - 1)
+
+        def compute_loss(logits, positions):
+            one_hot_positions = tf.one_hot(
+                positions, depth=seq_length, dtype=tf.float32)
+            log_probs = tf.nn.log_softmax(logits, axis=-1)
+            loss = -tf.reduce_sum(one_hot_positions * log_probs, axis=-1)
+            return loss
+
+        start_positions = features[self.name + "_start_positions"]
+        end_positions = features[self.name + "_end_positions"]
+
+        start_loss = compute_loss(start_logits, start_positions)
+        end_loss = compute_loss(end_logits, end_positions)
+
+        losses = (start_loss + end_loss) / 2.0
+
+        # plausible answer loss
+        plau_logits = tf.layers.dense(final_hidden, 2)
+        plau_logits = tf.reshape(plau_logits, [batch_size, seq_length, 2])
+        plau_logits = tf.transpose(plau_logits, [2, 0, 1])
+        unstacked_logits = tf.unstack(plau_logits, axis=0)
+        (plau_start_logits, plau_end_logits) = (unstacked_logits[0], unstacked_logits[1])
+        plau_start_logits += 1000.0 * (answer_mask - 1)
+        plau_end_logits += 1000.0 * (answer_mask - 1)
+        plau_start_positions = features[self.name + "_plau_answer_start"]
+        plau_end_positions = features[self.name + "_plau_answer_end"]
+        plau_start_loss = compute_loss(plau_start_logits, plau_start_positions)
+        plau_end_loss = compute_loss(plau_end_logits, plau_end_positions)
+        losses += (plau_start_loss + plau_end_loss) / 2.0
+
+        answerable_logit = tf.zeros([batch_size])
+        if self.config.answerable_classifier:
+            final_repr = final_hidden[:, 0]
+            if self.config.answerable_uses_start_logits:
+                start_p = tf.nn.softmax(start_logits)
+                start_feature = tf.reduce_sum(tf.expand_dims(start_p, -1) *
+                                              final_hidden, axis=1)
+                final_repr = tf.concat([final_repr, start_feature], -1)
+                final_repr = tf.layers.dense(final_repr, 512,
+                                             activation=modeling.gelu)
+            answerable_logit = tf.squeeze(tf.layers.dense(final_repr, 1), -1)
+            answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
+                labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
+                logits=answerable_logit)
+            losses += answerable_loss * self.config.answerable_weight
+
+        from finetune.qa.rl_loss import rl_loss
+        loss_rl = rl_loss(start_logits, end_logits, start_positions, end_positions, sample_num=4)
+        losses += 0.5 * loss_rl
+
+        return losses, dict(
+            loss=losses,
+            start_logits=start_logits,
+            end_logits=end_logits,
+            answerable_logit=answerable_logit,
+            start_positions=features[self.name + "_start_positions"],
+            end_positions=features[self.name + "_end_positions"],
+            start_top_log_probs=start_top_log_probs,
+            start_top_index=start_top_index,
+            end_top_log_probs=end_top_log_probs,
+            end_top_index=end_top_index,
+            eid=features[self.name + "_eid"],
+        )
+
     # def get_prediction_module(self, bert_model, features, is_training,
     #                           percent_done, do_ensemble=False):
-    #     final_hidden_shape = modeling.get_shape_list(features["input_mask"], expected_rank=2)
+    #     final_hidden = bert_model.get_sequence_output()
+    #
+    #     final_hidden_shape = modeling.get_shape_list(final_hidden, expected_rank=3)
     #     batch_size = final_hidden_shape[0]
     #     seq_length = final_hidden_shape[1]
     #
@@ -517,104 +749,6 @@ class QATask(task.Task):
     #     answer_mask *= tf.cast(features["segment_ids"], tf.float32)
     #     answer_mask += tf.one_hot(0, seq_length)
     #
-    #     def att_weighted_logits(logits_list, scope_name="att_w_logits"):
-    #         with tf.variable_scope(scope_name):
-    #             logits_st = tf.stack(logits_list, axis=1)  # [bs, k, seq_len]
-    #             logits_att, _ = attention_layer(
-    #                 from_tensor=logits_st,
-    #                 to_tensor=logits_st,
-    #                 attention_mask=create_attention_mask_from_input_mask(features["segment_ids"], features["input_mask"]),
-    #                 size_per_head=seq_length,
-    #                 attention_probs_dropout_prob=0.1,
-    #                 batch_size=batch_size,
-    #                 from_seq_length=len(logits_list),
-    #                 to_seq_length=len(logits_list)
-    #             )
-    #             return tf.reduce_mean(logits_att, axis=1)
-    #
-    #     if do_ensemble:  # 父模型不要lm
-    #         start_top_log_probs = tf.zeros([batch_size, self.config.beam_size])
-    #         start_top_index = tf.zeros([batch_size, self.config.beam_size], tf.int32)
-    #         end_top_log_probs = tf.zeros([batch_size, self.config.beam_size,
-    #                                       self.config.beam_size])
-    #         end_top_index = tf.zeros([batch_size, self.config.beam_size,
-    #                                   self.config.beam_size], tf.int32)
-    #         if self.config.joint_prediction:
-    #             start_logits_list = []
-    #             for i in range(self.config.ensemble_k):
-    #                 start_logits_sub = features[self.name + "_start_logits" + "_" + str(i)]
-    #                 start_logits_list.append(start_logits_sub)
-    #             start_alpha = tf.get_variable(
-    #                 "start_alpha", [self.config.ensemble_k], initializer=tf.zeros_initializer())
-    #             start_alpha = tf.nn.softmax(start_alpha)
-    #             start_logits_st = tf.stack(start_logits_list, axis=0)
-    #             start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
-    #
-    #             start_log_probs = tf.nn.log_softmax(start_logits)
-    #             start_top_log_probs, start_top_index = tf.nn.top_k(
-    #                 start_log_probs, k=self.config.beam_size)
-    #
-    #         else:
-    #             pass
-    #
-    #         def compute_loss(logits, positions):
-    #             one_hot_positions = tf.one_hot(
-    #                 positions, depth=seq_length, dtype=tf.float32)
-    #             log_probs = tf.nn.log_softmax(logits, axis=-1)
-    #             loss = -tf.reduce_sum(one_hot_positions * log_probs, axis=-1)
-    #             return loss
-    #
-    #         start_positions = features[self.name + "_start_positions"]
-    #         end_positions = features[self.name + "_end_positions"]
-    #
-    #         end_logits_list = []
-    #         for i in range(self.config.ensemble_k):
-    #             end_logits_sub = features[self.name + "_end_logits" + "_" + str(i)]
-    #             end_logits_list.append(end_logits_sub)
-    #         end_alpha = tf.get_variable(
-    #             "end_alpha", [self.config.ensemble_k], initializer=tf.zeros_initializer())
-    #         end_alpha = tf.nn.softmax(end_alpha)
-    #         end_logits_st = tf.stack(end_logits_list, axis=0)
-    #         end_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", end_logits_st, end_alpha), axis=0)
-    #
-    #         start_loss = compute_loss(start_logits, start_positions)
-    #         end_loss = compute_loss(end_logits, end_positions)
-    #
-    #         losses = (start_loss + end_loss) / 2.0
-    #
-    #         answerable_logit = tf.zeros([batch_size])
-    #         if self.config.answerable_classifier:
-    #             answerable_logit_list = []
-    #             for i in range(self.config.ensemble_k):
-    #                 answerable_logit_sub = features[self.name + "_answerable_logit" + "_" + str(i)]
-    #                 answerable_logit_list.append(answerable_logit_sub)
-    #             answerable_alpha = tf.get_variable(
-    #                 "answerable_alpha", [self.config.ensemble_k], initializer=tf.zeros_initializer())
-    #             answerable_alpha = tf.nn.softmax(answerable_alpha)
-    #             answerable_logit_st = tf.stack(answerable_logit_list, axis=0)
-    #             answerable_logit = tf.reduce_sum(tf.einsum("ijk,i->ijk", answerable_logit_st, answerable_alpha),
-    #                                                  axis=0)
-    #
-    #             answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
-    #                 labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
-    #                 logits=answerable_logit)
-    #             losses += answerable_loss * self.config.answerable_weight
-    #
-    #         return losses, dict(
-    #             loss=losses,
-    #             start_logits=start_logits,
-    #             end_logits=end_logits,
-    #             answerable_logit=answerable_logit,
-    #             start_positions=features[self.name + "_start_positions"],
-    #             end_positions=features[self.name + "_end_positions"],
-    #             start_top_log_probs=start_top_log_probs,
-    #             start_top_index=start_top_index,
-    #             end_top_log_probs=end_top_log_probs,
-    #             end_top_index=end_top_index,
-    #             eid=features[self.name + "_eid"],
-    #         )
-    #
-    #     final_hidden = bert_model.get_sequence_output()
     #     start_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
     #
     #     start_top_log_probs = tf.zeros([batch_size, self.config.beam_size])
@@ -713,19 +847,19 @@ class QATask(task.Task):
     #     losses = (start_loss + end_loss) / 2.0
     #
     #     # plausible answer loss
-    #     if not do_ensemble:
-    #         plau_logits = tf.layers.dense(final_hidden, 2)
-    #         plau_logits = tf.reshape(plau_logits, [batch_size, seq_length, 2])
-    #         plau_logits = tf.transpose(plau_logits, [2, 0, 1])
-    #         unstacked_logits = tf.unstack(plau_logits, axis=0)
-    #         (plau_start_logits, plau_end_logits) = (unstacked_logits[0], unstacked_logits[1])
-    #         plau_start_logits += 1000.0 * (answer_mask - 1)
-    #         plau_end_logits += 1000.0 * (answer_mask - 1)
-    #         plau_start_positions = features[self.name + "_plau_answer_start"]
-    #         plau_end_positions = features[self.name + "_plau_answer_end"]
-    #         plau_start_loss = compute_loss(plau_start_logits, plau_start_positions)
-    #         plau_end_loss = compute_loss(plau_end_logits, plau_end_positions)
-    #         losses += (plau_start_loss + plau_end_loss) / 2.0
+    #     # if not do_ensemble:
+    #     plau_logits = tf.layers.dense(final_hidden, 2)
+    #     plau_logits = tf.reshape(plau_logits, [batch_size, seq_length, 2])
+    #     plau_logits = tf.transpose(plau_logits, [2, 0, 1])
+    #     unstacked_logits = tf.unstack(plau_logits, axis=0)
+    #     (plau_start_logits, plau_end_logits) = (unstacked_logits[0], unstacked_logits[1])
+    #     plau_start_logits += 1000.0 * (answer_mask - 1)
+    #     plau_end_logits += 1000.0 * (answer_mask - 1)
+    #     plau_start_positions = features[self.name + "_plau_answer_start"]
+    #     plau_end_positions = features[self.name + "_plau_answer_end"]
+    #     plau_start_loss = compute_loss(plau_start_logits, plau_start_positions)
+    #     plau_end_loss = compute_loss(plau_end_logits, plau_end_positions)
+    #     losses += (plau_start_loss + plau_end_loss) / 2.0
     #
     #     answerable_logit = tf.zeros([batch_size])
     #     if self.config.answerable_classifier:
@@ -748,7 +882,7 @@ class QATask(task.Task):
     #                 "answerable_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
     #             answerable_alpha = tf.nn.softmax(answerable_alpha)
     #             answerable_logit_st = tf.stack(answerable_logit_list, axis=0)
-    #             answerable_logit = tf.reduce_sum(tf.einsum("ijk,i->ijk", answerable_logit_st, answerable_alpha), axis=0)
+    #             answerable_logit = tf.reduce_sum(tf.einsum("ij,i->ij", answerable_logit_st, answerable_alpha), axis=0)
     #
     #         answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
     #             labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
@@ -756,6 +890,7 @@ class QATask(task.Task):
     #         losses += answerable_loss * self.config.answerable_weight
     #
     #     from finetune.qa.rl_loss import rl_loss
+    #     # if not do_ensemble:
     #     loss_rl = rl_loss(start_logits, end_logits, start_positions, end_positions, sample_num=4)
     #     losses += 0.5 * loss_rl
     #
@@ -772,177 +907,6 @@ class QATask(task.Task):
     #         end_top_index=end_top_index,
     #         eid=features[self.name + "_eid"],
     #     )
-
-    def get_prediction_module(self, bert_model, features, is_training,
-                              percent_done, do_ensemble=False):
-        final_hidden = bert_model.get_sequence_output()
-
-        final_hidden_shape = modeling.get_shape_list(final_hidden, expected_rank=3)
-        batch_size = final_hidden_shape[0]
-        seq_length = final_hidden_shape[1]
-
-        answer_mask = tf.cast(features["input_mask"], tf.float32)
-        answer_mask *= tf.cast(features["segment_ids"], tf.float32)
-        answer_mask += tf.one_hot(0, seq_length)
-
-        start_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
-
-        start_top_log_probs = tf.zeros([batch_size, self.config.beam_size])
-        start_top_index = tf.zeros([batch_size, self.config.beam_size], tf.int32)
-        end_top_log_probs = tf.zeros([batch_size, self.config.beam_size,
-                                      self.config.beam_size])
-        end_top_index = tf.zeros([batch_size, self.config.beam_size,
-                                  self.config.beam_size], tf.int32)
-        if self.config.joint_prediction:
-            start_logits += 1000.0 * (answer_mask - 1)
-
-            if do_ensemble:
-                start_logits_list = [start_logits]
-                for i in range(self.config.ensemble_k):
-                    start_logits_sub = features[self.name + "_start_logits" + "_" + str(i)]
-                    start_logits_list.append(start_logits_sub)
-                start_alpha = tf.get_variable(
-                    "start_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
-                start_alpha = tf.nn.softmax(start_alpha)
-                start_logits_st = tf.stack(start_logits_list, axis=0)
-                start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
-
-            start_log_probs = tf.nn.log_softmax(start_logits)
-            start_top_log_probs, start_top_index = tf.nn.top_k(
-                start_log_probs, k=self.config.beam_size)
-
-            if not is_training:
-                # batch, beam, length, hidden
-                end_features = tf.tile(tf.expand_dims(final_hidden, 1),
-                                       [1, self.config.beam_size, 1, 1])
-                # batch, beam, length
-                start_index = tf.one_hot(start_top_index,
-                                         depth=seq_length, axis=-1, dtype=tf.float32)
-                # batch, beam, hidden
-                start_features = tf.reduce_sum(
-                    tf.expand_dims(final_hidden, 1) *
-                    tf.expand_dims(start_index, -1), axis=-2)
-                # batch, beam, length, hidden
-                start_features = tf.tile(tf.expand_dims(start_features, 2),
-                                         [1, 1, seq_length, 1])
-            else:
-                start_index = tf.one_hot(
-                    features[self.name + "_start_positions"], depth=seq_length,
-                    axis=-1, dtype=tf.float32)
-                start_features = tf.reduce_sum(tf.expand_dims(start_index, -1) *
-                                               final_hidden, axis=1)
-                start_features = tf.tile(tf.expand_dims(start_features, 1),
-                                         [1, seq_length, 1])
-                end_features = final_hidden
-
-            final_repr = tf.concat([start_features, end_features], -1)
-            final_repr = tf.layers.dense(final_repr, 512, activation=modeling.gelu,
-                                         name="qa_hidden")
-            # batch, beam, length (batch, length when training)
-            end_logits = tf.squeeze(tf.layers.dense(final_repr, 1), -1,
-                                    name="qa_logits")
-            if is_training:
-                end_logits += 1000.0 * (answer_mask - 1)
-            else:
-                end_logits += tf.expand_dims(1000.0 * (answer_mask - 1), 1)
-
-            if not is_training:
-                end_log_probs = tf.nn.log_softmax(end_logits)
-                end_top_log_probs, end_top_index = tf.nn.top_k(
-                    end_log_probs, k=self.config.beam_size)
-                end_logits = tf.zeros([batch_size, seq_length])
-        else:
-            end_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
-            start_logits += 1000.0 * (answer_mask - 1)
-            end_logits += 1000.0 * (answer_mask - 1)
-
-        def compute_loss(logits, positions):
-            one_hot_positions = tf.one_hot(
-                positions, depth=seq_length, dtype=tf.float32)
-            log_probs = tf.nn.log_softmax(logits, axis=-1)
-            loss = -tf.reduce_sum(one_hot_positions * log_probs, axis=-1)
-            return loss
-
-        start_positions = features[self.name + "_start_positions"]
-        end_positions = features[self.name + "_end_positions"]
-
-        if do_ensemble:
-            end_logits_list = [end_logits]
-            for i in range(self.config.ensemble_k):
-                end_logits_sub = features[self.name + "_end_logits" + "_" + str(i)]
-                end_logits_list.append(end_logits_sub)
-            end_alpha = tf.get_variable(
-                "end_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
-            end_alpha = tf.nn.softmax(end_alpha)
-            end_logits_st = tf.stack(end_logits_list, axis=0)
-            end_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", end_logits_st, end_alpha), axis=0)
-
-        start_loss = compute_loss(start_logits, start_positions)
-        end_loss = compute_loss(end_logits, end_positions)
-
-        losses = (start_loss + end_loss) / 2.0
-
-        # plausible answer loss
-        # if not do_ensemble:
-        plau_logits = tf.layers.dense(final_hidden, 2)
-        plau_logits = tf.reshape(plau_logits, [batch_size, seq_length, 2])
-        plau_logits = tf.transpose(plau_logits, [2, 0, 1])
-        unstacked_logits = tf.unstack(plau_logits, axis=0)
-        (plau_start_logits, plau_end_logits) = (unstacked_logits[0], unstacked_logits[1])
-        plau_start_logits += 1000.0 * (answer_mask - 1)
-        plau_end_logits += 1000.0 * (answer_mask - 1)
-        plau_start_positions = features[self.name + "_plau_answer_start"]
-        plau_end_positions = features[self.name + "_plau_answer_end"]
-        plau_start_loss = compute_loss(plau_start_logits, plau_start_positions)
-        plau_end_loss = compute_loss(plau_end_logits, plau_end_positions)
-        losses += (plau_start_loss + plau_end_loss) / 2.0
-
-        answerable_logit = tf.zeros([batch_size])
-        if self.config.answerable_classifier:
-            final_repr = final_hidden[:, 0]
-            if self.config.answerable_uses_start_logits:
-                start_p = tf.nn.softmax(start_logits)
-                start_feature = tf.reduce_sum(tf.expand_dims(start_p, -1) *
-                                              final_hidden, axis=1)
-                final_repr = tf.concat([final_repr, start_feature], -1)
-                final_repr = tf.layers.dense(final_repr, 512,
-                                             activation=modeling.gelu)
-            answerable_logit = tf.squeeze(tf.layers.dense(final_repr, 1), -1)
-
-            if do_ensemble:
-                answerable_logit_list = [answerable_logit]
-                for i in range(self.config.ensemble_k):
-                    answerable_logit_sub = features[self.name + "_answerable_logit" + "_" + str(i)]
-                    answerable_logit_list.append(answerable_logit_sub)
-                answerable_alpha = tf.get_variable(
-                    "answerable_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
-                answerable_alpha = tf.nn.softmax(answerable_alpha)
-                answerable_logit_st = tf.stack(answerable_logit_list, axis=0)
-                answerable_logit = tf.reduce_sum(tf.einsum("ij,i->ij", answerable_logit_st, answerable_alpha), axis=0)
-
-            answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
-                labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
-                logits=answerable_logit)
-            losses += answerable_loss * self.config.answerable_weight
-
-        from finetune.qa.rl_loss import rl_loss
-        # if not do_ensemble:
-        loss_rl = rl_loss(start_logits, end_logits, start_positions, end_positions, sample_num=4)
-        losses += 0.5 * loss_rl
-
-        return losses, dict(
-            loss=losses,
-            start_logits=start_logits,
-            end_logits=end_logits,
-            answerable_logit=answerable_logit,
-            start_positions=features[self.name + "_start_positions"],
-            end_positions=features[self.name + "_end_positions"],
-            start_top_log_probs=start_top_log_probs,
-            start_top_index=start_top_index,
-            end_top_log_probs=end_top_log_probs,
-            end_top_index=end_top_index,
-            eid=features[self.name + "_eid"],
-        )
 
     def get_scorer(self, split="dev"):
         return qa_metrics.SpanBasedQAScorer(self.config, self, split, self.v2)

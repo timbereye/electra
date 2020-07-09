@@ -587,7 +587,7 @@ class QATask(task.Task):
                 answerable_logit_list = []
                 for i in range(self.config.ensemble_k):
                     answerable_logit_sub = features[self.name + "_answerable_logit" + "_" + str(i)]
-                    answerable_logit_list.append(tf.nn.softmax(answerable_logit_sub))
+                    answerable_logit_list.append(answerable_logit_sub)
                 answerable_alpha = tf.get_variable(
                     "answerable_alpha", [self.config.ensemble_k], initializer=tf.zeros_initializer())
                 answerable_alpha = tf.nn.softmax(answerable_alpha)

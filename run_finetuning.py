@@ -72,30 +72,30 @@ class FinetuningModel(object):
                 task_losses, task_outputs = task.get_prediction_module(
                     bert_model, features, is_training, percent_done, do_ensemble=do_ensemble)
 
-            if not do_ensemble:
-                grad, = tf.gradients(task_losses, bert_model.token_embeddings)
-                grad = tf.stop_gradient(grad)
-                perturb = self._scale_l2(grad, 0.125)
+            # if not do_ensemble:
+            grad, = tf.gradients(task_losses, bert_model.token_embeddings)
+            grad = tf.stop_gradient(grad)
+            perturb = self._scale_l2(grad, 0.125)
 
-                adv_token_embeddings = bert_model.token_embeddings + perturb
+            adv_token_embeddings = bert_model.token_embeddings + perturb
 
-                bert_model_adv = modeling.BertModel(
-                    bert_config=bert_config,
-                    is_training=is_training,
-                    input_ids=features["input_ids"],
-                    input_mask=features["input_mask"],
-                    token_type_ids=features["segment_ids"],
-                    use_one_hot_embeddings=config.use_tpu,
-                    embedding_size=config.embedding_size,
-                    input_embeddings=adv_token_embeddings)
+            bert_model_adv = modeling.BertModel(
+                bert_config=bert_config,
+                is_training=is_training,
+                input_ids=features["input_ids"],
+                input_mask=features["input_mask"],
+                token_type_ids=features["segment_ids"],
+                use_one_hot_embeddings=config.use_tpu,
+                embedding_size=config.embedding_size,
+                input_embeddings=adv_token_embeddings)
 
-                with tf.variable_scope("task_specific/" + task.name, reuse=tf.AUTO_REUSE):
-                    task_adv_losses, task_adv_outputs = task.get_prediction_module(
-                        bert_model_adv, features, is_training, percent_done)
+            with tf.variable_scope("task_specific/" + task.name, reuse=tf.AUTO_REUSE):
+                task_adv_losses, task_adv_outputs = task.get_prediction_module(
+                    bert_model_adv, features, is_training, percent_done, do_ensemble=do_ensemble)
 
-                total_loss = 0.875 * task_losses + 0.125 * task_adv_losses
-            else:
-                total_loss = task_losses
+            total_loss = 0.875 * task_losses + 0.125 * task_adv_losses
+            # else:
+            #     total_loss = task_losses
             losses.append(total_loss)
             self.outputs[task.name] = task_outputs
         self.loss = tf.reduce_sum(

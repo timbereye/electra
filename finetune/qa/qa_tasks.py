@@ -543,7 +543,7 @@ class QATask(task.Task):
                 start_logits_list = []
                 for i in range(self.config.ensemble_k):
                     start_logits_sub = features[self.name + "_start_logits" + "_" + str(i)]
-                    start_logits_list.append(start_logits_sub)
+                    start_logits_list.append(tf.nn.softmax(start_logits_sub))
                 start_alpha = tf.get_variable(
                     "start_alpha", [self.config.ensemble_k], initializer=tf.zeros_initializer())
                 start_alpha = tf.nn.softmax(start_alpha)
@@ -570,7 +570,7 @@ class QATask(task.Task):
             end_logits_list = []
             for i in range(self.config.ensemble_k):
                 end_logits_sub = features[self.name + "_end_logits" + "_" + str(i)]
-                end_logits_list.append(end_logits_sub)
+                end_logits_list.append(tf.nn.softmax(end_logits_sub))
             end_alpha = tf.get_variable(
                 "end_alpha", [self.config.ensemble_k], initializer=tf.zeros_initializer())
             end_alpha = tf.nn.softmax(end_alpha)
@@ -587,7 +587,7 @@ class QATask(task.Task):
                 answerable_logit_list = []
                 for i in range(self.config.ensemble_k):
                     answerable_logit_sub = features[self.name + "_answerable_logit" + "_" + str(i)]
-                    answerable_logit_list.append(answerable_logit_sub)
+                    answerable_logit_list.append(tf.nn.softmax(answerable_logit_sub))
                 answerable_alpha = tf.get_variable(
                     "answerable_alpha", [self.config.ensemble_k], initializer=tf.zeros_initializer())
                 answerable_alpha = tf.nn.softmax(answerable_alpha)

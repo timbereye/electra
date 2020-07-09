@@ -525,7 +525,6 @@ class QATask(task.Task):
                 logits_att, _ = attention_layer(
                     from_tensor=logits_st,
                     to_tensor=logits_st,
-                    attention_mask=create_attention_mask_from_input_mask(features["segment_ids"], features["input_mask"]),
                     size_per_head=seq_length,
                     attention_probs_dropout_prob=0.1,
                     batch_size=batch_size,

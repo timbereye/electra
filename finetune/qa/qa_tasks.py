@@ -595,18 +595,6 @@ class QATask(task.Task):
             else:
                 end_logits += tf.expand_dims(1000.0 * (answer_mask - 1), 1)
 
-            if do_ensemble:
-                end_logits_list = [end_logits]
-                for i in range(self.config.ensemble_k):
-                    end_logits_sub = features[self.name + "_end_logits" + "_" + str(i)]
-                    end_logits_list.append(end_logits_sub)
-                end_logits = att_weighted_logits(end_logits_list, scope_name="end_logits_weights")
-                # end_alpha = tf.get_variable(
-                #     "end_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
-                # end_alpha = tf.nn.softmax(end_alpha)
-                # end_logits_st = tf.stack(end_logits_list, axis=0)
-                # end_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", end_logits_st, end_alpha), axis=0)
-
             if not is_training:
                 end_log_probs = tf.nn.log_softmax(end_logits)
                 end_top_log_probs, end_top_index = tf.nn.top_k(

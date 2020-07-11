@@ -35,7 +35,7 @@ from model import tokenization
 from util import utils
 import numpy as np
 from functools import reduce
-from model.modeling import attention_layer, create_attention_mask_from_input_mask
+from model.modeling import attention_layer, create_attention_mask_from_input_mask, create_initializer
 
 
 class QAExample(task.Example):
@@ -551,7 +551,9 @@ class QATask(task.Task):
                     start_logits_list.append(tf.nn.softmax(start_logits_sub))
                 # start_logits = att_weighted_logits(start_logits_list, scope_name="start_logits_weights")
                 start_alpha = tf.get_variable(
-                    "start_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
+                    "start_alpha", [self.config.ensemble_k + 1], initializer=create_initializer())
+                # start_alpha = tf.get_variable(
+                #     "start_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
                 start_alpha = tf.nn.softmax(start_alpha)
                 start_logits_st = tf.stack(start_logits_list, axis=0)
                 start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
@@ -653,7 +655,9 @@ class QATask(task.Task):
                     answerable_logit_sub = features[self.name + "_answerable_logit" + "_" + str(i)]
                     answerable_logit_list.append(answerable_logit_sub)
                 answerable_alpha = tf.get_variable(
-                    "answerable_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
+                    "answerable_alpha", [self.config.ensemble_k + 1], initializer=create_initializer())
+                # answerable_alpha = tf.get_variable(
+                #     "answerable_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
                 answerable_alpha = tf.nn.softmax(answerable_alpha)
                 answerable_logit_st = tf.stack(answerable_logit_list, axis=0)
                 answerable_logit = tf.reduce_sum(tf.einsum("ij,i->ij", answerable_logit_st, answerable_alpha), axis=0)

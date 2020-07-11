@@ -545,10 +545,10 @@ class QATask(task.Task):
             start_logits += 1000.0 * (answer_mask - 1)
 
             if do_ensemble:
-                start_logits_list = [start_logits]
+                start_logits_list = [tf.nn.softmax(start_logits)]
                 for i in range(self.config.ensemble_k):
                     start_logits_sub = features[self.name + "_start_logits" + "_" + str(i)]
-                    start_logits_list.append(start_logits_sub)
+                    start_logits_list.append(tf.nn.softmax(start_logits_sub))
                 # start_logits = att_weighted_logits(start_logits_list, scope_name="start_logits_weights")
                 start_alpha = tf.get_variable(
                     "start_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())

@@ -663,10 +663,10 @@ class QATask(task.Task):
                 for i in range(self.config.ensemble_k):
                     answerable_logit_sub = features[self.name + "_answerable_logit" + "_" + str(i)]
                     answerable_logit_list.append(answerable_logit_sub)
-                answerable_alpha = tf.get_variable(
-                    "answerable_alpha", [self.config.ensemble_k + 1], initializer=create_initializer())
                 # answerable_alpha = tf.get_variable(
-                #     "answerable_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
+                #     "answerable_alpha", [self.config.ensemble_k + 1], initializer=create_initializer())
+                answerable_alpha = tf.get_variable(
+                    "answerable_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
                 answerable_alpha = tf.nn.softmax(answerable_alpha)
                 answerable_logit_st = tf.stack(answerable_logit_list, axis=0)
                 answerable_logit = tf.reduce_sum(tf.einsum("ij,i->ij", answerable_logit_st, answerable_alpha), axis=0)

@@ -22,6 +22,7 @@ from __future__ import print_function
 import abc
 import collections
 import json
+import math
 import os
 import six
 import tensorflow.compat.v1 as tf
@@ -522,15 +523,20 @@ class QATask(task.Task):
         def att_weighted_logits(query, logits_list, scope_name="att_w_logits"):
             with tf.variable_scope(scope_name):
                 logits_st = tf.stack(logits_list, axis=1)  # [bs, k, seq_len]
-                logits_att, _ = attention_layer(
-                    from_tensor=query,
-                    to_tensor=logits_st,
-                    size_per_head=seq_length,
-                    attention_probs_dropout_prob=0.1,
-                    batch_size=batch_size,
-                    from_seq_length=len(logits_list),
-                    to_seq_length=len(logits_list)
-                )
+                attention_scores = tf.matmul(query, logits_st, transpose_b=True)
+                attention_scores = tf.multiply(attention_scores,
+                                               1.0 / math.sqrt(float(seq_length)))
+                attention_probs = tf.nn.softmax(attention_scores)
+                logits_att = tf.matmul(attention_probs, logits_st)
+                # logits_att, _ = attention_layer(
+                #     from_tensor=query,
+                #     to_tensor=logits_st,
+                #     size_per_head=seq_length,
+                #     attention_probs_dropout_prob=0.1,
+                #     batch_size=batch_size,
+                #     from_seq_length=len(logits_list),
+                #     to_seq_length=len(logits_list)
+                # )
                 return logits_att
 
         start_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)

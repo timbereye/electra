@@ -519,11 +519,11 @@ class QATask(task.Task):
         answer_mask *= tf.cast(features["segment_ids"], tf.float32)
         answer_mask += tf.one_hot(0, seq_length)
 
-        def att_weighted_logits(logits_list, scope_name="att_w_logits"):
+        def att_weighted_logits(query, logits_list, scope_name="att_w_logits"):
             with tf.variable_scope(scope_name):
                 logits_st = tf.stack(logits_list, axis=1)  # [bs, k, seq_len]
                 logits_att, _ = attention_layer(
-                    from_tensor=logits_st,
+                    from_tensor=query,
                     to_tensor=logits_st,
                     size_per_head=seq_length,
                     attention_probs_dropout_prob=0.1,
@@ -531,7 +531,7 @@ class QATask(task.Task):
                     from_seq_length=len(logits_list),
                     to_seq_length=len(logits_list)
                 )
-                return tf.reduce_mean(logits_att, axis=1)
+                return logits_att
 
         start_logits = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
 
@@ -550,13 +550,16 @@ class QATask(task.Task):
                     start_logits_sub = features[self.name + "_start_logits" + "_" + str(i)]
                     start_logits_list.append(start_logits_sub)
                 # start_logits = att_weighted_logits(start_logits_list, scope_name="start_logits_weights")
-                start_alpha = tf.get_variable(
-                    "start_alpha", [self.config.ensemble_k + 1], initializer=create_initializer())
                 # start_alpha = tf.get_variable(
-                #     "start_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
-                start_alpha = tf.nn.softmax(start_alpha)
-                start_logits_st = tf.stack(start_logits_list, axis=0)
-                start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
+                #     "start_alpha", [self.config.ensemble_k + 1], initializer=create_initializer())
+                # # start_alpha = tf.get_variable(
+                # #     "start_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
+                # start_alpha = tf.nn.softmax(start_alpha)
+                # start_logits_st = tf.stack(start_logits_list, axis=0)
+                # start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
+
+                query_start = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
+                start_logits = tf.squeeze(att_weighted_logits(query_start, start_logits_list, scope_name="start_logits_att"), 1)
 
             start_log_probs = tf.nn.log_softmax(start_logits)
             start_top_log_probs, start_top_index = tf.nn.top_k(

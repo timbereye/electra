@@ -673,7 +673,7 @@ class QATask(task.Task):
                 query_answerable = tf.squeeze(tf.layers.dense(final_repr, 1), -1)
                 answerable_logit = tf.squeeze(att_weighted_logits(tf.expand_dims(tf.expand_dims(query_answerable, -1), -1),
                                                                   [tf.expand_dims(x, -1) for x in answerable_logit_list],
-                                                                  scope_name="answerable_logit_att"), 1)
+                                                                  scope_name="answerable_logit_att"))
 
             answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
                 labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),

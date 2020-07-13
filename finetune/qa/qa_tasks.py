@@ -665,11 +665,15 @@ class QATask(task.Task):
                     answerable_logit_list.append(answerable_logit_sub)
                 # answerable_alpha = tf.get_variable(
                 #     "answerable_alpha", [self.config.ensemble_k + 1], initializer=create_initializer())
-                answerable_alpha = tf.get_variable(
-                    "answerable_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
-                answerable_alpha = tf.nn.softmax(answerable_alpha)
-                answerable_logit_st = tf.stack(answerable_logit_list, axis=0)
-                answerable_logit = tf.reduce_sum(tf.einsum("ij,i->ij", answerable_logit_st, answerable_alpha), axis=0)
+                # answerable_alpha = tf.get_variable(
+                #     "answerable_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
+                # answerable_alpha = tf.nn.softmax(answerable_alpha)
+                # answerable_logit_st = tf.stack(answerable_logit_list, axis=0)
+                # answerable_logit = tf.reduce_sum(tf.einsum("ij,i->ij", answerable_logit_st, answerable_alpha), axis=0)
+                query_answerable = tf.squeeze(tf.layers.dense(final_repr, 1), -1)
+                answerable_logit = tf.squeeze(att_weighted_logits(tf.expand_dims(tf.expand_dims(query_answerable, -1), -1),
+                                                                  [tf.expand_dims(x, -1) for x in answerable_logit_list],
+                                                                  scope_name="answerable_logit_att"), 1)
 
             answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
                 labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),

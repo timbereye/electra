@@ -132,6 +132,7 @@ class FinetuningConfig(object):
         self.ensemble_k = 7
         self.logits_tmp = os.path.join(qa_topdir, "logits_tmp", "logits_{:}.pkl").format
         self.unique_ids_tmp = os.path.join(qa_topdir, "logits_tmp", "unique_ids_{:}.pkl").format
+        self.tag = ""
 
         # update defaults with passed-in hyperparameters
         self.update(kwargs)

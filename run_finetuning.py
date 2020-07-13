@@ -199,7 +199,7 @@ class ModelRunner(object):
             tpu_job_name=config.tpu_job_name)
         run_config = tf.estimator.tpu.RunConfig(
             cluster=tpu_cluster_resolver,
-            model_dir=config.model_dir(sub_model if sub_model else ""),
+            model_dir=config.model_dir(sub_model if sub_model else config.tag),
             save_checkpoints_steps=config.save_checkpoints_steps,
             save_checkpoints_secs=None,
             tpu_config=tpu_config)

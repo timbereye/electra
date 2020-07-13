@@ -565,7 +565,7 @@ class QATask(task.Task):
                 # start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
 
                 query_start = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
-                start_logits = tf.squeeze(att_weighted_logits(tf.expand_dims(query_start, 1), start_logits_list, scope_name="start_logits_att"), 1)
+                start_logits = tf.squeeze(att_weighted_logits(tf.expand_dims(query_start, 1), start_logits_list, scope_name="start_logits_att"))
 
             start_log_probs = tf.nn.log_softmax(start_logits)
             start_top_log_probs, start_top_index = tf.nn.top_k(

@@ -556,15 +556,15 @@ class QATask(task.Task):
                 for i in range(self.config.ensemble_k):
                     start_logits_sub = features[self.name + "_start_logits" + "_" + str(i)]
                     start_logits_list.append(start_logits_sub)
-                # start_logits = att_weighted_logits(start_logits_list, scope_name="start_logits_weights")
-                # start_alpha = tf.get_variable(
-                #     "start_alpha", [self.config.ensemble_k + 1], initializer=create_initializer())
+                start_logits = att_weighted_logits(start_logits_list, scope_name="start_logits_weights")
+                start_alpha = tf.get_variable(
+                    "start_alpha", [self.config.ensemble_k + 1], initializer=create_initializer())
 
                 # start_alpha = tf.get_variable(
                 #     "start_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
-                # start_alpha = tf.nn.softmax(start_alpha)
-                # start_logits_st = tf.stack(start_logits_list, axis=0)
-                # start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
+                start_alpha = tf.nn.softmax(start_alpha)
+                start_logits_st = tf.stack(start_logits_list, axis=0)
+                start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
 
                 # query_start = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
 
@@ -572,13 +572,13 @@ class QATask(task.Task):
                 # start_logits = tf.squeeze(att_weighted_logits(tf.expand_dims(query_start, 1), start_logits_list,
                 # scope_name="start_logits_att"), 1)
 
-                fake_weights = tf.layers.dense(final_hidden, seq_length)
-                logits_st = tf.stack(start_logits_list, axis=1)  # [bs, k, seq_len]
-                attention_scores = tf.matmul(fake_weights, logits_st, transpose_b=True)
-                attention_scores = tf.multiply(attention_scores,
-                                               1.0 / math.sqrt(float(seq_length)))
-                attention_probs = tf.nn.softmax(attention_scores)
-                start_logits = tf.reduce_sum(tf.multiply(logits_st, tf.transpose(attention_probs, [0, 2, 1])), 1)
+                # fake_weights = tf.layers.dense(final_hidden, seq_length)
+                # logits_st = tf.stack(start_logits_list, axis=1)  # [bs, k, seq_len]
+                # attention_scores = tf.matmul(fake_weights, logits_st, transpose_b=True)
+                # attention_scores = tf.multiply(attention_scores,
+                #                                1.0 / math.sqrt(float(seq_length)))
+                # attention_probs = tf.nn.softmax(attention_scores)
+                # start_logits = tf.reduce_sum(tf.multiply(logits_st, tf.transpose(attention_probs, [0, 2, 1])), 1)
 
             start_log_probs = tf.nn.log_softmax(start_logits)
             start_top_log_probs, start_top_index = tf.nn.top_k(

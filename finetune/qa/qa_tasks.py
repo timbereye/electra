@@ -556,7 +556,7 @@ class QATask(task.Task):
                 for i in range(self.config.ensemble_k):
                     start_logits_sub = features[self.name + "_start_logits" + "_" + str(i)]
                     start_logits_list.append(start_logits_sub)
-                start_logits = att_weighted_logits(start_logits_list, scope_name="start_logits_weights")
+                # start_logits = att_weighted_logits(start_logits_list, scope_name="start_logits_weights")
                 start_alpha = tf.get_variable(
                     "start_alpha", [self.config.ensemble_k + 1], initializer=create_initializer())
 

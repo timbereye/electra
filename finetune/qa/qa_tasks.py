@@ -551,23 +551,25 @@ class QATask(task.Task):
             start_logits += 1000.0 * (answer_mask - 1)
 
             if do_ensemble:
-                # start_logits_list = [start_logits]
-                start_logits_list = []
+                start_logits_list = [start_logits]
+                # start_logits_list = []
                 for i in range(self.config.ensemble_k):
                     start_logits_sub = features[self.name + "_start_logits" + "_" + str(i)]
                     start_logits_list.append(start_logits_sub)
                 # start_logits = att_weighted_logits(start_logits_list, scope_name="start_logits_weights")
                 # start_alpha = tf.get_variable(
                 #     "start_alpha", [self.config.ensemble_k + 1], initializer=create_initializer())
-                # # start_alpha = tf.get_variable(
-                # #     "start_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
-                # start_alpha = tf.nn.softmax(start_alpha)
-                # start_logits_st = tf.stack(start_logits_list, axis=0)
-                # start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
+                start_alpha = tf.get_variable(
+                    "start_alpha", [self.config.ensemble_k + 1], initializer=tf.zeros_initializer())
+                start_alpha = tf.nn.softmax(start_alpha)
+                start_logits_st = tf.stack(start_logits_list, axis=0)
+                start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
 
                 # query_start = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
-                query_start = start_logits
-                start_logits = tf.squeeze(att_weighted_logits(tf.expand_dims(query_start, 1), start_logits_list, scope_name="start_logits_att"), 1)
+
+                # query_start = start_logits
+                # start_logits = tf.squeeze(att_weighted_logits(tf.expand_dims(query_start, 1), start_logits_list,
+                # scope_name="start_logits_att"), 1)
 
             start_log_probs = tf.nn.log_softmax(start_logits)
             start_top_log_probs, start_top_index = tf.nn.top_k(

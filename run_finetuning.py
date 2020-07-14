@@ -21,6 +21,7 @@ from __future__ import print_function
 
 import argparse
 import collections
+import copy
 import json
 import os
 
@@ -332,61 +333,130 @@ def run_finetuning(config: configure_finetuning.FinetuningConfig):
     heading("Config")
     utils.log_config(config)
     tasks = task_builder.get_tasks(config)
-    if config.do_train:
-        # train sub-model
-        for i in range(config.ensemble_k):
-            heading("Training sub-model: {}".format(i))
-            model_runner = ModelRunner(config, tasks, sub_data=str(i), sub_model=str(i))
+    # if config.do_train:
+    #     # train sub-model
+    #     for i in range(config.ensemble_k):
+    #         heading("Training sub-model: {}".format(i))
+    #         model_runner = ModelRunner(config, tasks, sub_data=str(i), sub_model=str(i))
+    #         model_runner.train()
+    #         utils.log()
+    #     # getnerate train logits
+    #     config.do_train = False
+    #     for i in range(config.ensemble_k):
+    #         heading("Generate train logits: {}".format(i))
+    #         model_runner = ModelRunner(config, tasks, sub_model=str(i))
+    #         model_runner.evaluate(prepare_ensemble=True, split="train")
+    #         utils.log()
+    #     # train ensemble model
+    #     config.do_train = True
+    #     model_runner = ModelRunner(config, tasks, do_ensemble=True)
+    #     heading("Training ensemble model")
+    #     model_runner.train()
+    #     utils.log()
+    #
+    # if config.do_eval:
+    #     # getnerate dev logits
+    #     config.do_train = False
+    #     for i in range(config.ensemble_k):
+    #         heading("Generate dev logits: {}".format(i))
+    #         model_runner = ModelRunner(config, tasks, sub_model=str(i))
+    #         model_runner.evaluate(prepare_ensemble=True, split="dev")
+    #         utils.log()
+    #     config.do_train = True
+    #     model_runner = ModelRunner(config, tasks, do_ensemble=True)
+    #     heading("Run dev set evaluation")
+    #     results.append(model_runner.evaluate())
+    #     write_results(config, results)
+    #     if config.write_test_outputs and trial <= config.n_writes_test:
+    #         heading("Running on the test set and writing the predictions")
+    #         for task in tasks:
+    #             # Currently only writing preds for GLUE and SQuAD 2.0 is supported
+    #             if task.name in ["cola", "mrpc", "mnli", "sst", "rte", "qnli", "qqp",
+    #                              "sts"]:
+    #                 for split in task.get_test_splits():
+    #                     model_runner.write_classification_outputs([task], trial, split)
+    #             elif task.name == "squad":
+    #                 scorer = model_runner.evaluate_task(task, "test", False)
+    #                 scorer.write_predictions()
+    #                 preds = utils.load_json(config.qa_preds_file("squad"))
+    #                 null_odds = utils.load_json(config.qa_na_file("squad"))
+    #                 for q, _ in preds.items():
+    #                     if null_odds[q] > config.qa_na_threshold:
+    #                         preds[q] = ""
+    #                 utils.write_json(preds, config.test_predictions(
+    #                     task.name, "test", trial))
+    #             else:
+    #                 utils.log("Skipping task", task.name,
+    #                           "- writing predictions is not supported for this task")
+    config_copy = copy.deepcopy(config)
+    params_list = config.ensemble_params_list
+    while config.num_trials < 0 or trial <= config.num_trials:
+        if config.do_train:
+            # train sub-model
+            for i in range(config.ensemble_k):
+                heading("Training sub-model: {}".format(i))
+                params = params_list[i]
+                config.update(params)
+                model_runner = ModelRunner(config, tasks, sub_model=str(i))
+                model_runner.train()
+                utils.log()
+            # getnerate train logits
+            config.do_train = False
+            for i in range(config.ensemble_k):
+                heading("Generate train logits: {}".format(i))
+                params = params_list[i]
+                config.update(params)
+                model_runner = ModelRunner(config, tasks, sub_model=str(i))
+                model_runner.evaluate(prepare_ensemble=True, split="train")
+                utils.log()
+            # train ensemble model
+            config = copy.deepcopy(config_copy)
+            config.do_train = True
+            config.model_dir += "_" + str(trial)
+            model_runner = ModelRunner(config, tasks, do_ensemble=True)
+            heading("Training ensemble model")
             model_runner.train()
             utils.log()
-        # getnerate train logits
-        config.do_train = False
-        for i in range(config.ensemble_k):
-            heading("Generate train logits: {}".format(i))
-            model_runner = ModelRunner(config, tasks, sub_model=str(i))
-            model_runner.evaluate(prepare_ensemble=True, split="train")
-            utils.log()
-        # train ensemble model
-        config.do_train = True
-        model_runner = ModelRunner(config, tasks, do_ensemble=True)
-        heading("Training ensemble model")
-        model_runner.train()
-        utils.log()
 
-    if config.do_eval:
-        # getnerate dev logits
-        config.do_train = False
-        for i in range(config.ensemble_k):
-            heading("Generate dev logits: {}".format(i))
-            model_runner = ModelRunner(config, tasks, sub_model=str(i))
-            model_runner.evaluate(prepare_ensemble=True, split="dev")
-            utils.log()
-        config.do_train = True
-        model_runner = ModelRunner(config, tasks, do_ensemble=True)
-        heading("Run dev set evaluation")
-        results.append(model_runner.evaluate())
-        write_results(config, results)
-        if config.write_test_outputs and trial <= config.n_writes_test:
-            heading("Running on the test set and writing the predictions")
-            for task in tasks:
-                # Currently only writing preds for GLUE and SQuAD 2.0 is supported
-                if task.name in ["cola", "mrpc", "mnli", "sst", "rte", "qnli", "qqp",
-                                 "sts"]:
-                    for split in task.get_test_splits():
-                        model_runner.write_classification_outputs([task], trial, split)
-                elif task.name == "squad":
-                    scorer = model_runner.evaluate_task(task, "test", False)
-                    scorer.write_predictions()
-                    preds = utils.load_json(config.qa_preds_file("squad"))
-                    null_odds = utils.load_json(config.qa_na_file("squad"))
-                    for q, _ in preds.items():
-                        if null_odds[q] > config.qa_na_threshold:
-                            preds[q] = ""
-                    utils.write_json(preds, config.test_predictions(
-                        task.name, "test", trial))
-                else:
-                    utils.log("Skipping task", task.name,
-                              "- writing predictions is not supported for this task")
+        if config.do_eval:
+            # getnerate dev logits
+            config.do_train = False
+            for i in range(config.ensemble_k):
+                heading("Generate dev logits: {}".format(i))
+                params = params_list[i]
+                config.update(params)
+                model_runner = ModelRunner(config, tasks, sub_model=str(i))
+                model_runner.evaluate(prepare_ensemble=True, split="dev")
+                utils.log()
+            config = copy.deepcopy(config_copy)
+            config.do_train = True
+            config.model_dir += "_" + str(trial)
+            model_runner = ModelRunner(config, tasks, do_ensemble=True)
+            heading("Run dev set evaluation")
+            results.append(model_runner.evaluate())
+            write_results(config, results)
+            if config.write_test_outputs and trial <= config.n_writes_test:
+                heading("Running on the test set and writing the predictions")
+                for task in tasks:
+                    # Currently only writing preds for GLUE and SQuAD 2.0 is supported
+                    if task.name in ["cola", "mrpc", "mnli", "sst", "rte", "qnli", "qqp",
+                                     "sts"]:
+                        for split in task.get_test_splits():
+                            model_runner.write_classification_outputs([task], trial, split)
+                    elif task.name == "squad":
+                        scorer = model_runner.evaluate_task(task, "test", False)
+                        scorer.write_predictions()
+                        preds = utils.load_json(config.qa_preds_file("squad"))
+                        null_odds = utils.load_json(config.qa_na_file("squad"))
+                        for q, _ in preds.items():
+                            if null_odds[q] > config.qa_na_threshold:
+                                preds[q] = ""
+                        utils.write_json(preds, config.test_predictions(
+                            task.name, "test", trial))
+                    else:
+                        utils.log("Skipping task", task.name,
+                                  "- writing predictions is not supported for this task")
+        trial += 1
 
 
 def main():

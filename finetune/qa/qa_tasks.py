@@ -570,7 +570,8 @@ class QATask(task.Task):
 
                 # query_start = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
 
-                query_start = start_logits
+                query_start = tf.nn.dropout(tf.layers.dense(final_hidden, 1024), 0.9)
+                query_start = tf.squeeze(tf.layers.dense(query_start, 1), -1)
                 start_logits = tf.squeeze(att_weighted_logits(tf.expand_dims(query_start, 1), start_logits_list,
                                                               scope_name="start_logits_att"), 1)
 
@@ -692,7 +693,8 @@ class QATask(task.Task):
                 # answerable_logit_st = tf.stack(answerable_logit_list, axis=0)
                 # answerable_logit = tf.reduce_sum(tf.einsum("ij,i->ij", answerable_logit_st, answerable_alpha), axis=0)
 
-                answerable_query = tf.layers.dense(final_repr, 1)
+                answerable_query = tf.nn.dropout(tf.layers.dense(final_repr, 1024), 0.9)
+                answerable_query = tf.layers.dense(answerable_query, 1)
                 answerable_logit = tf.squeeze(att_weighted_logits(tf.expand_dims(answerable_query, -1),
                                                               [tf.expand_dims(x, -1) for x in answerable_logit_list],
                                                               scope_name="answerable_logits_att"))

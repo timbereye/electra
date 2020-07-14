@@ -399,6 +399,7 @@ def run_finetuning(config: configure_finetuning.FinetuningConfig):
                 config.update(params)
                 model_runner = ModelRunner(config, tasks, sub_model=str(i))
                 model_runner.train()
+                model_runner.evaluate()
                 utils.log()
             # getnerate train logits
             config.do_train = False

@@ -568,12 +568,11 @@ class QATask(task.Task):
                 # start_logits_st = tf.stack(start_logits_list, axis=0)
                 # start_logits = tf.reduce_sum(tf.einsum("ijk,i->ijk", start_logits_st, start_alpha), axis=0)
 
-                query_start = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
-                query_start = tf.nn.dropout(query_start, 0.9)
+                # query_start = tf.squeeze(tf.layers.dense(final_hidden, 1), -1)
 
                 # query_start = start_logits
-                start_logits = tf.squeeze(att_weighted_logits(tf.expand_dims(query_start, 1), start_logits_list,
-                                                              scope_name="start_logits_att"), 1)
+                # start_logits = tf.squeeze(att_weighted_logits(tf.expand_dims(query_start, 1), start_logits_list,
+                #                                               scope_name="start_logits_att"), 1)
 
                 # fake_weights = tf.layers.dense(final_hidden, seq_length)
                 # logits_st = tf.stack(start_logits_list, axis=1)  # [bs, k, seq_len]
@@ -586,6 +585,10 @@ class QATask(task.Task):
 
                 # self_att_logits = att_weighted_logits(start_logits_list, start_logits_list)
                 # start_logits = tf.reduce_mean(self_att_logits, axis=1)
+
+                start_weight = tf.nn.softmax(tf.layers.dense(final_hidden, self.config.ensemble_k + 1))
+                logits_st = tf.stack(start_logits_list, axis=1)  # [bs, k, seq_len]
+                start_logits = tf.reduce_sum(tf.multiply(logits_st, tf.transpose(start_weight, [0, 2, 1])), 1)
 
             start_log_probs = tf.nn.log_softmax(start_logits)
             start_top_log_probs, start_top_index = tf.nn.top_k(

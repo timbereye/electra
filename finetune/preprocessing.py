@@ -64,7 +64,7 @@ class Preprocessor(object):
         dataset_name = "_".join(sorted([task.name for task in tasks]))
         dataset_name += "_" + split
         dataset_prefix = os.path.join(
-            self._config.preprocessed_data_dir(str(sub) if sub else ""), dataset_name)
+            self._config.preprocessed_data_dir(str(sub) if sub else "") + ("_pre" if prepare_ensemble else ""), dataset_name)
         if self.do_ensemble:  # ensemble模型需要logits信息，重新保存
             dataset_prefix = dataset_prefix + "_ensemble"
         tfrecords_path = dataset_prefix + ".tfrecord"

@@ -321,7 +321,7 @@ def write_results(config: configure_finetuning.FinetuningConfig, results):
     utils.write_pickle(results, config.results_pkl)
 
 
-def run_finetuning(config: configure_finetuning.FinetuningConfig):
+def run_finetuning(config: configure_finetuning.FinetuningConfig, model_name, data_dir, args):
     """Run finetuning."""
 
     # Setup for training
@@ -396,6 +396,8 @@ def run_finetuning(config: configure_finetuning.FinetuningConfig):
             for i in range(config.ensemble_k):
                 heading("Training sub-model: {}".format(i))
                 params = params_list[i]
+                if model_name != params["model_name"]:  # 更新model_name及其相关参数
+                    config = configure_finetuning.FinetuningConfig(params["model_name"], data_dir, **args)
                 config.update(params)
                 model_runner = ModelRunner(config, tasks, sub_model=str(i))
                 model_runner.train()
@@ -425,6 +427,8 @@ def run_finetuning(config: configure_finetuning.FinetuningConfig):
             for i in range(config.ensemble_k):
                 heading("Generate dev logits: {}".format(i))
                 params = params_list[i]
+                if model_name != params["model_name"]:  # 更新model_name及其相关参数
+                    config = configure_finetuning.FinetuningConfig(params["model_name"], data_dir, **args)
                 config.update(params)
                 model_runner = ModelRunner(config, tasks, sub_model=str(i))
                 model_runner.evaluate(prepare_ensemble=True, split="dev")
@@ -475,7 +479,7 @@ def main():
         hparams = json.loads(args.hparams)
     tf.logging.set_verbosity(tf.logging.ERROR)
     run_finetuning(configure_finetuning.FinetuningConfig(
-        args.model_name, args.data_dir, **hparams))
+        args.model_name, args.data_dir, **hparams), args.model_name, args.data_dir, **hparams)
 
 
 if __name__ == "__main__":

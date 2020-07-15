@@ -129,20 +129,24 @@ class FinetuningConfig(object):
             "{:}_{:}_{:}_predictions.pkl").format
 
         # ensemble
-        self.ensemble_k = 6
+        self.ensemble_k = 8
         self.ensemble_params_list = [
-            {"model_size": "large", "train_batch_size": 32, "num_train_epochs": 2, "learning_rate": 5e-5,
-             "layerwise_lr_decay": 0.9},
-            {"model_size": "large", "train_batch_size": 8, "num_train_epochs": 3, "learning_rate": 2e-5,
-             "layerwise_lr_decay": 0.9},
-            {"model_size": "large", "train_batch_size": 32, "num_train_epochs": 3, "learning_rate": 5e-5,
-             "layerwise_lr_decay": 0.9},
-            {"model_size": "large", "train_batch_size": 8, "num_train_epochs": 2, "learning_rate": 5e-5,
-             "layerwise_lr_decay": 0.9},
-            {"model_size": "base", "train_batch_size": 32, "num_train_epochs": 2, "learning_rate": 1e-4,
-             "layerwise_lr_decay": 0.8},
-            {"model_size": "base", "train_batch_size": 32, "num_train_epochs": 3, "learning_rate": 5e-5,
-             "layerwise_lr_decay": 0.8},
+            {"model_name": "electra_large", "model_size": "large", "train_batch_size": 32, "num_train_epochs": 2,
+             "learning_rate": 5e-5, "layerwise_lr_decay": 0.9},
+            {"model_name": "electra_large", "model_size": "large", "train_batch_size": 32, "num_train_epochs": 3,
+             "learning_rate": 2e-5, "layerwise_lr_decay": 0.9},
+            {"model_name": "electra_large", "model_size": "large", "train_batch_size": 32, "num_train_epochs": 3,
+             "learning_rate": 5e-5, "layerwise_lr_decay": 0.9},
+            {"model_name": "electra_large", "model_size": "large", "train_batch_size": 8, "num_train_epochs": 2,
+             "learning_rate": 5e-5, "layerwise_lr_decay": 0.9},
+            {"model_name": "electra_large", "model_size": "large", "train_batch_size": 32, "num_train_epochs": 2,
+             "learning_rate": 4e-5, "layerwise_lr_decay": 0.86},
+            {"model_name": "electra_base", "model_size": "base", "train_batch_size": 32, "num_train_epochs": 2,
+             "learning_rate": 1e-4, "layerwise_lr_decay": 0.8},
+            {"model_name": "electra_base", "model_size": "base", "train_batch_size": 32, "num_train_epochs": 3,
+             "learning_rate": 5e-5, "layerwise_lr_decay": 0.8},
+            {"model_name": "electra_base", "model_size": "base", "train_batch_size": 32, "num_train_epochs": 2,
+             "learning_rate": 2e-4, "layerwise_lr_decay": 0.86},
         ]
         self.logits_tmp = os.path.join(qa_topdir, "logits_tmp", "logits_{:}.pkl").format
         self.unique_ids_tmp = os.path.join(qa_topdir, "logits_tmp", "unique_ids_{:}.pkl").format

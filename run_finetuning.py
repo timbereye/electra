@@ -390,28 +390,48 @@ def run_finetuning(config: configure_finetuning.FinetuningConfig, model_name, da
     #                           "- writing predictions is not supported for this task")
     config_copy = copy.deepcopy(config)
     params_list = config.ensemble_params_list
+
+    if config.do_train:
+        # train sub-model
+        for i in range(config.ensemble_k):
+            heading("Training sub-model: {}".format(i))
+            params = params_list[i]
+            if model_name != params["model_name"]:  # 更新model_name及其相关参数
+                config = configure_finetuning.FinetuningConfig(params["model_name"], data_dir, **args)
+            config.update(params)
+            model_runner = ModelRunner(config, tasks, sub_model=str(i))
+            model_runner.train()
+            # model_runner.evaluate()
+            utils.log()
+        # getnerate train logits
+        config = copy.deepcopy(config_copy)
+        config.do_train = False
+        for i in range(config.ensemble_k):
+            heading("Generate train logits: {}".format(i))
+            params = params_list[i]
+            if model_name != params["model_name"]:  # 更新model_name及其相关参数
+                config = configure_finetuning.FinetuningConfig(params["model_name"], data_dir, **args)
+            config.update(params)
+            model_runner = ModelRunner(config, tasks, sub_model=str(i))
+            model_runner.evaluate(prepare_ensemble=True, split="train")
+            utils.log()
+
+    if config.do_eval:
+        # getnerate dev logits
+        config = copy.deepcopy(config_copy)
+        config.do_train = False
+        for i in range(config.ensemble_k):
+            heading("Generate dev logits: {}".format(i))
+            params = params_list[i]
+            if model_name != params["model_name"]:  # 更新model_name及其相关参数
+                config = configure_finetuning.FinetuningConfig(params["model_name"], data_dir, **args)
+            config.update(params)
+            model_runner = ModelRunner(config, tasks, sub_model=str(i))
+            model_runner.evaluate(prepare_ensemble=True, split="dev")
+            utils.log()
+
     while config.num_trials < 0 or trial <= config.num_trials:
         if config.do_train:
-            # train sub-model
-            for i in range(config.ensemble_k):
-                heading("Training sub-model: {}".format(i))
-                params = params_list[i]
-                if model_name != params["model_name"]:  # 更新model_name及其相关参数
-                    config = configure_finetuning.FinetuningConfig(params["model_name"], data_dir, **args)
-                config.update(params)
-                model_runner = ModelRunner(config, tasks, sub_model=str(i))
-                model_runner.train()
-                model_runner.evaluate()
-                utils.log()
-            # getnerate train logits
-            config.do_train = False
-            for i in range(config.ensemble_k):
-                heading("Generate train logits: {}".format(i))
-                params = params_list[i]
-                config.update(params)
-                model_runner = ModelRunner(config, tasks, sub_model=str(i))
-                model_runner.evaluate(prepare_ensemble=True, split="train")
-                utils.log()
             # train ensemble model
             config = copy.deepcopy(config_copy)
             config.do_train = True
@@ -420,19 +440,7 @@ def run_finetuning(config: configure_finetuning.FinetuningConfig, model_name, da
             heading("Training ensemble model")
             model_runner.train()
             utils.log()
-
         if config.do_eval:
-            # getnerate dev logits
-            config.do_train = False
-            for i in range(config.ensemble_k):
-                heading("Generate dev logits: {}".format(i))
-                params = params_list[i]
-                if model_name != params["model_name"]:  # 更新model_name及其相关参数
-                    config = configure_finetuning.FinetuningConfig(params["model_name"], data_dir, **args)
-                config.update(params)
-                model_runner = ModelRunner(config, tasks, sub_model=str(i))
-                model_runner.evaluate(prepare_ensemble=True, split="dev")
-                utils.log()
             config = copy.deepcopy(config_copy)
             config.do_train = True
             config.model_dir += "_" + str(trial)
@@ -462,6 +470,7 @@ def run_finetuning(config: configure_finetuning.FinetuningConfig, model_name, da
                         utils.log("Skipping task", task.name,
                                   "- writing predictions is not supported for this task")
         trial += 1
+
 
 
 def main():

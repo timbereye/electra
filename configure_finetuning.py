@@ -99,35 +99,6 @@ class FinetuningConfig(object):
         self.tpu_zone = None  # GCE zone where the Cloud TPU is located in
         self.gcp_project = None  # project name for the Cloud TPU-enabled project
 
-        # default locations of data files
-        self.data_dir = data_dir
-        pretrained_model_dir = os.path.join(data_dir, "models", model_name)
-        self.raw_data_dir = os.path.join(data_dir, "finetuning_data", "{:}").format
-        self.vocab_file = os.path.join(pretrained_model_dir, "vocab.txt")
-        if not tf.io.gfile.exists(self.vocab_file):
-            self.vocab_file = os.path.join(self.data_dir, "vocab.txt")
-        task_names_str = ",".join(
-            kwargs["task_names"] if "task_names" in kwargs else self.task_names)
-        self.init_checkpoint = None if self.debug else pretrained_model_dir
-        self.model_dir = os.path.join(pretrained_model_dir, "finetuning_models",
-                                      task_names_str + "_model")
-        results_dir = os.path.join(pretrained_model_dir, "results")
-        self.results_txt = os.path.join(results_dir,
-                                        task_names_str + "_results.txt")
-        self.results_pkl = os.path.join(results_dir,
-                                        task_names_str + "_results.pkl")
-        qa_topdir = os.path.join(results_dir, task_names_str + "_qa")
-        self.qa_eval_file = os.path.join(qa_topdir, "{:}_eval.json").format
-        self.qa_preds_file = os.path.join(qa_topdir, "{:}_preds.json").format
-        self.qa_na_file = os.path.join(qa_topdir, "{:}_null_odds.json").format
-        self.eval_all_nbest_file = os.path.join(qa_topdir, "eval_all_nbest.pkl")
-        self.preprocessed_data_dir = os.path.join(
-            pretrained_model_dir, "finetuning_tfrecords",
-            task_names_str + "_tfrecords" + ("-debug" if self.debug else ""))
-        self.test_predictions = os.path.join(
-            pretrained_model_dir, "test_predictions",
-            "{:}_{:}_{:}_predictions.pkl").format
-
         # update defaults with passed-in hyperparameters
         self.update(kwargs)
 
@@ -165,6 +136,37 @@ class FinetuningConfig(object):
 
         # passed-in-arguments override (for example) debug-mode defaults
         self.update(kwargs)
+
+        # default locations of data files
+        self.data_dir = data_dir
+        pretrained_model_dir = os.path.join(data_dir, "models", model_name)
+        self.raw_data_dir = os.path.join(data_dir, "finetuning_data", "{:}").format
+        self.vocab_file = os.path.join(pretrained_model_dir, "vocab.txt")
+        if not tf.io.gfile.exists(self.vocab_file):
+            self.vocab_file = os.path.join(self.data_dir, "vocab.txt")
+        task_names_str = ",".join(
+            kwargs["task_names"] if "task_names" in kwargs else self.task_names)
+        self.init_checkpoint = None if self.debug else pretrained_model_dir
+        output_root = os.path.join(pretrained_model_dir, str(self.train_batch_size) + "_" + str(self.max_seq_length) +
+                                   "_" + str(self.learning_rate) + "_" + self.num_train_epochs)
+        self.model_dir = os.path.join(output_root, "finetuning_models",
+                                      task_names_str + "_model")
+        results_dir = os.path.join(output_root, "results")
+        self.results_txt = os.path.join(results_dir,
+                                        task_names_str + "_results.txt")
+        self.results_pkl = os.path.join(results_dir,
+                                        task_names_str + "_results.pkl")
+        qa_topdir = os.path.join(results_dir, task_names_str + "_qa")
+        self.qa_eval_file = os.path.join(qa_topdir, "{:}_eval.json").format
+        self.qa_preds_file = os.path.join(qa_topdir, "{:}_preds.json").format
+        self.qa_na_file = os.path.join(qa_topdir, "{:}_null_odds.json").format
+        self.eval_all_nbest_file = os.path.join(qa_topdir, "eval_all_nbest.pkl")
+        self.preprocessed_data_dir = os.path.join(
+            pretrained_model_dir, "finetuning_tfrecords",
+            task_names_str + "_tfrecords" + ("-debug" if self.debug else ""))
+        self.test_predictions = os.path.join(
+            pretrained_model_dir, "test_predictions",
+            "{:}_{:}_{:}_predictions.pkl").format
 
     def update(self, kwargs):
         for k, v in kwargs.items():

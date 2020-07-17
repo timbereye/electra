@@ -182,8 +182,8 @@ class ModelRunner(object):
         self._estimator.train(
             input_fn=self._train_input_fn, max_steps=self.train_steps)
 
-    def evaluate(self):
-        return {task.name: self.evaluate_task(task) for task in self._tasks}
+    def evaluate(self, split="dev"):
+        return {task.name: self.evaluate_task(task, split) for task in self._tasks}
 
     def evaluate_task(self, task, split="dev", return_results=True):
         """Evaluate the current model."""

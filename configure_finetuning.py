@@ -35,6 +35,7 @@ class FinetuningConfig(object):
         self.num_trials = 1  # how many train+eval runs to perform
         self.do_train = True  # train a model
         self.do_eval = True  # evaluate the model
+        self.do_eval_train = False  # evaluate on train set
         self.keep_all_models = True  # if False, only keep the last trial's ckpt
 
         # model

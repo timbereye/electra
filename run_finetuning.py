@@ -296,6 +296,11 @@ def run_finetuning(config: configure_finetuning.FinetuningConfig):
                         utils.log("Skipping task", task.name,
                                   "- writing predictions is not supported for this task")
 
+        if config.do_eval_train:
+            heading("Run dev set evaluation")
+            results.append(model_runner.evaluate(split="train"))
+            write_results(config, results)
+
         if trial != config.num_trials and (not config.keep_all_models):
             utils.rmrf(config.model_dir)
         trial += 1

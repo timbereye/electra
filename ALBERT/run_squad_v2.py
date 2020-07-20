@@ -356,7 +356,8 @@ def main(_):
                 max_query_length=FLAGS.max_query_length,
                 is_training=False,
                 output_fn=append_feature,
-                do_lower_case=FLAGS.do_lower_case)
+                do_lower_case=FLAGS.do_lower_case,
+                max_answer_length=FLAGS.max_answer_length)
             eval_writer.close()
 
             with tf.gfile.Open(FLAGS.predict_feature_left_file, "wb") as fout:

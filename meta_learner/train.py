@@ -15,7 +15,7 @@ import os
 import json
 from sklearn.linear_model import LogisticRegression
 from sklearn.utils import shuffle
-from sklearn.externals import joblib
+import joblib
 from sklearn.metrics import classification_report, f1_score
 import tensorflow as tf
 import itertools
@@ -38,7 +38,7 @@ class DataLoader(object):
         K = len(self.pred_files)
         pred_all = []
         for i in range(K):
-            with tf.gfile.Open(self.pred_files[i], "r", encoding="utf-8") as fp:
+            with tf.gfile.Open(self.pred_files[i], "r") as fp:
                 predictions = json.load(fp)
                 pred_all.append(predictions)
         keys = sorted(list(pred_all[0].keys()))
@@ -51,7 +51,7 @@ class DataLoader(object):
         print("Samples Num: ".format(len(keys)))
 
         if self.labels_file:
-            with tf.gfile.Open(self.labels_file, "r", encoding="utf-8") as fp:
+            with tf.gfile.Open(self.labels_file, "r") as fp:
                 labels = json.load(fp)
                 Y = []
                 for k in keys:
@@ -62,7 +62,7 @@ class DataLoader(object):
                         if int(p > 0) == Y[i]:
                             tmp[j] += 1
                 tmp = [x/len(keys) for x in tmp]
-                print("Previous acc: {}".format(tmp))
+                print("{} - Previous acc: {}".format(self.labels_file, tmp))
         else:
             Y = [0] * len(keys)
 
@@ -248,22 +248,34 @@ def stacking(model_dir, train_X, train_Y, val_X, val_Y):
 
 def main(mode=0):
     model_dir = "./models/"
-    pred_files_pattern_train = "gs://squad_cx/EData_pv/models/electra_large/*/results/squad_qa/squad_null_odds.json"
-    pred_files_pattern_val = "gs://squad_cx"
-    label_file_train = "gs://squad_cx"
-    label_file_val = "gs://squad_cx"
+    pred_files_pattern_train = [
+        "gs://squad_cx/EData_pv/tmp/bs32_seq384_lr5e-05_ep2.0_train.json",
+        "gs://squad_cx/EData_pv/tmp/bs32_seq512_lr3e-05_ep3_train.json",
+        "gs://squad_cx/EData_pv/tmp/bs32_seq512_lr5e-05_ep2.0_train.json",
+    ]
+    pred_files_pattern_val = [
+        "gs://squad_cx/EData_pv/tmp/bs32_seq384_lr5e-05_ep2.0_dev.json",
+        "gs://squad_cx/EData_pv/tmp/bs32_seq512_lr3e-05_ep3_dev.json",
+        "gs://squad_cx/EData_pv/tmp/bs32_seq512_lr5e-05_ep2.0_dev.json",
+
+    ]
+    label_file_train = "./data/label_train.json"
+    label_file_val = "./data/label_dev.json"
     train_data_loader = DataLoader(tf.gfile.Glob(pred_files_pattern_train), label_file_train)
     train_X, train_Y = train_data_loader.load(do_shuffle=True)
     val_data_loader = DataLoader(tf.gfile.Glob(pred_files_pattern_val), label_file_val)
     val_X, val_Y = val_data_loader.load()
     if mode == 0:
         # LR
+        print("************* LR *************")
         lr = LR(model_dir)
         lr.grid_search(train_X, train_Y, val_X, val_Y)
         # RF
+        print("************* RF *************")
         rf = RF(model_dir)
         rf.grid_search(train_X, train_Y, val_X, val_Y)
         # XGB
+        print("************* XGB *************")
         xgb = XGB(model_dir)
         xgb.grid_search(train_X, train_Y, val_X, val_Y)
     if mode == 1:

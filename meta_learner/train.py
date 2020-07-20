@@ -89,12 +89,12 @@ class LR:
         grid = {
             "solver": ["liblinear", "lbfgs", "newton-cg", "sag"],
             "C": [0.001, 0.01, 0.1, 1, 10, 100, 1000],
-            "class_weight": [None, "balanced", {0:1, 1:3}, {0:3, 1:1}, {0:1, 1:2}, {0:2, 1:1}],
-            "max_iter": [100, 500, 1000, 2000]
+            "class_weight": [None, "balanced", {0:1, 1:3}, {0:1, 1:2}],
+            # "max_iter": [100, 500, 1000, 2000]
         }
         params_list = []
-        for v1, v2, v3, v4 in itertools.product(grid["solver"], grid["C"], grid["class_weight"], grid["max_iter"]):
-            params_list.append({"solver": v1, "C": v2, "class_weight": v3, "max_iter": v4})
+        for v1, v2, v3 in itertools.product(grid["solver"], grid["C"], grid["class_weight"]):
+            params_list.append({"solver": v1, "C": v2, "class_weight": v3})
         best_params = None
         best_report = None
         best_model = None
@@ -135,7 +135,7 @@ class RF:
             "max_depth": [None, 3, 5],
             "min_samples_split": [2, 10, 50, 100],
             "min_samples_leaf": [1, 5, 10, 20],
-            "class_weight": [None, "balanced", {0: 1, 1: 3}, {0: 3, 1: 1}, {0: 1, 1: 2}, {0: 2, 1: 1}],
+            "class_weight": [None, "balanced", {0: 1, 1: 3}, {0: 1, 1: 2}],
         }
         params_list = []
         for v1, v2, v3, v4, v5 in itertools.product(grid["n_estimators"], grid["max_depth"], grid["min_samples_split"],

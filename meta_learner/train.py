@@ -138,11 +138,11 @@ class RF:
 
     def grid_search(self, train_X, train_Y, val_X, val_Y):
         grid = {
-            "n_estimators": [100, 500],
-            "max_depth": [None, 3, 5],
-            "min_samples_split": [2, 10, 50],
-            "min_samples_leaf": [1, 5, 7],
-            "class_weight": [{0: 1, 1: 3}, {0:1, 1:5}, {0:1, 1:7}],
+            "n_estimators": [100, 200],
+            "max_depth": [3],
+            "min_samples_split": [7, 10, 15, 20],
+            "min_samples_leaf": [7, 10, 15, 20],
+            "class_weight": [{0:1, 1:5}],
         }
         params_list = []
         for v1, v2, v3, v4, v5 in itertools.product(grid["n_estimators"], grid["max_depth"], grid["min_samples_split"],
@@ -287,17 +287,52 @@ def main(mode=0):
         # print("************* LR *************")
         # lr = LR(model_dir)
         # lr.grid_search(train_X, train_Y, val_X, val_Y)
-        # # RF
-        # print("************* RF *************")
-        # rf = RF(model_dir)
-        # rf.grid_search(train_X, train_Y, val_X, val_Y)
+        # RF
+        print("************* RF *************")
+        rf = RF(model_dir)
+        rf.grid_search(train_X, train_Y, val_X, val_Y)
         # XGB
-        print("************* XGB *************")
-        xgb = XGB(model_dir)
-        xgb.grid_search(train_X, train_Y, val_X, val_Y)
+        # print("************* XGB *************")
+        # xgb = XGB(model_dir)
+        # xgb.grid_search(train_X, train_Y, val_X, val_Y)
     if mode == 1:
         stacking(model_dir, train_X, train_Y, val_X, val_Y)
 
 
 if __name__ == '__main__':
     main()
+
+"""
+############## log #################
+Previous acc: [0.9368314663522277, 0.9406215783710941, 0.9393582076981386]
+# LR   - class_weight
+{'solver': 'liblinear', 'C': 1, 'class_weight': {0: 1, 1: 5}}
+best report:
+              precision    recall  f1-score   support
+
+           0    0.93097   0.95783   0.94421      5928
+           1    0.95670   0.92918   0.94274      5945
+
+    accuracy                        0.94349     11873
+   macro avg    0.94384   0.94351   0.94348     11873
+weighted avg    0.94386   0.94349   0.94347     11873
+
+# RF
+{'n_estimators': 100, 'max_depth': 3, 'min_samples_split': 10, 'min_samples_leaf': 7, 'class_weight': {0: 1, 1: 5}}
+best report:
+              precision    recall  f1-score   support
+
+           0    0.93870   0.95057   0.94460      5928
+           1    0.95009   0.93810   0.94405      5945
+
+    accuracy                        0.94433     11873
+   macro avg    0.94439   0.94434   0.94433     11873
+weighted avg    0.94440   0.94433   0.94433     11873
+
+
+
+# XGB
+
+
+
+"""

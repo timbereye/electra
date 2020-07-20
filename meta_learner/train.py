@@ -78,7 +78,7 @@ class LR:
         self.model_dir = model_dir
 
     def build_model(self, params):
-        return LogisticRegression(**params)
+        return LogisticRegression(**params, n_jobs=-1)
 
     def train_single(self, X, Y, params):
         clf = self.build_model(params)
@@ -122,7 +122,7 @@ class RF:
         self.model_dir = model_dir
 
     def build_model(self, params):
-        return RandomForestClassifier(**params)
+        return RandomForestClassifier(**params, n_jobs=-1)
 
     def train_single(self, X, Y, params):
         clf = self.build_model(params)
@@ -169,7 +169,7 @@ class XGB:
         self.model_dir = model_dir
 
     def build_model(self, params):
-        return XGBClassifier(**params)
+        return XGBClassifier(**params, n_jobs=-1)
 
     def train_single(self, X, Y, params):
         clf = self.build_model(params)

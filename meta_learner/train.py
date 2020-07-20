@@ -151,7 +151,7 @@ class RF:
             clf.fit(train_X, train_Y)
             pred = clf.predict(val_X)
             report = classification_report(val_Y, pred)
-            print("val report:\n{}\n".format(report))
+            print("params: {}  ---  val report:\n{}\n".format(params, report))
             f1 = f1_score(val_Y, pred)
             if f1 > best_f1:
                 best_f1 = f1
@@ -199,7 +199,7 @@ class XGB:
             clf.fit(train_X, train_Y)
             pred = clf.predict(val_X)
             report = classification_report(val_Y, pred)
-            print("val report:\n{}\n".format(report))
+            print("params: {}  ---  val report:\n{}\n".format(params, report))
             f1 = f1_score(val_Y, pred)
             if f1 > best_f1:
                 best_f1 = f1

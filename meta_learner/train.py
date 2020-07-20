@@ -88,8 +88,8 @@ class LR:
     def grid_search(self, train_X, train_Y, val_X, val_Y):
         grid = {
             "solver": ["liblinear", "lbfgs", "newton-cg", "sag"],
-            "C": [0.001, 0.01, 0.1, 1, 10, 100, 1000],
-            "class_weight": [None, "balanced", {0:1, 1:3}, {0:1, 1:2}],
+            "C": [0.01, 0.1, 1, 10, 100],
+            "class_weight": [None, "balanced", {0:1, 1:3}, {0:1, 1:2}, {0:1, 1:4}, {0:1, 1:5}],
             # "max_iter": [100, 500, 1000, 2000]
         }
         params_list = []
@@ -135,7 +135,7 @@ class RF:
             "max_depth": [None, 3, 5],
             "min_samples_split": [2, 10, 50, 100],
             "min_samples_leaf": [1, 5, 10, 20],
-            "class_weight": [None, "balanced", {0: 1, 1: 3}, {0: 1, 1: 2}],
+            "class_weight": [None, "balanced", {0: 1, 1: 3}, {0: 1, 1: 2}, {0:1, 1:4}, {0:1, 1:5}],
         }
         params_list = []
         for v1, v2, v3, v4, v5 in itertools.product(grid["n_estimators"], grid["max_depth"], grid["min_samples_split"],
@@ -181,7 +181,7 @@ class XGB:
             "n_estimators": [100, 500, 1000, 2000],
             "max_depth": [3, 5, 7, 10],
             "learning_rate": [0.001, 0.01, 0.1, 0.2],
-            "scale_pos_weight": [1, 2, 3],
+            "scale_pos_weight": [1, 2, 3, 4, 5],
             "gamma": [0.001, 0.01, 0.1, 0],
             "max_delta_step": [0, 5, 10, 20, 30],
         }

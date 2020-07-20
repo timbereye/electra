@@ -249,14 +249,14 @@ def stacking(model_dir, train_X, train_Y, val_X, val_Y):
 def main(mode=0):
     model_dir = "./models/"
     pred_files_pattern_train = [
-        "gs://squad_cx/EData_pv/tmp/bs32_seq384_lr5e-05_ep2.0_train.json",
-        "gs://squad_cx/EData_pv/tmp/bs32_seq512_lr3e-05_ep3_train.json",
-        "gs://squad_cx/EData_pv/tmp/bs32_seq512_lr5e-05_ep2.0_train.json",
+        "./data/bs32_seq384_lr5e-05_ep2.0_train.json",
+        "./data/bs32_seq512_lr3e-05_ep3_train.json",
+        "./data/bs32_seq512_lr5e-05_ep2.0_train.json",
     ]
     pred_files_pattern_val = [
-        "gs://squad_cx/EData_pv/tmp/bs32_seq384_lr5e-05_ep2.0_dev.json",
-        "gs://squad_cx/EData_pv/tmp/bs32_seq512_lr3e-05_ep3_dev.json",
-        "gs://squad_cx/EData_pv/tmp/bs32_seq512_lr5e-05_ep2.0_dev.json",
+        "./data/bs32_seq384_lr5e-05_ep2.0_dev.json",
+        "./data/bs32_seq512_lr3e-05_ep3_dev.json",
+        "./data/bs32_seq512_lr5e-05_ep2.0_dev.json",
 
     ]
     label_file_train = "./data/label_train.json"

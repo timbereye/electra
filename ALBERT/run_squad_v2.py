@@ -397,8 +397,12 @@ def main(_):
                         unique_id=unique_id,
                         cls_logits=cls_logits))
 
+            if "train" in FLAGS.predict_file:
+                prefix = "train"
+            else:
+                prefix = "dev"
             output_prediction_file = os.path.join(
-                FLAGS.output_dir, "predictions.json")
+                FLAGS.output_dir, "predictions_{}.json".format(prefix))
             output_nbest_file = os.path.join(
                 FLAGS.output_dir, "nbest_predictions.json")
             output_null_log_odds_file = os.path.join(

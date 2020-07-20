@@ -13,6 +13,8 @@
 
 import os
 import json
+import time
+import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.utils import shuffle
 import joblib
@@ -68,7 +70,7 @@ class DataLoader(object):
 
         if do_shuffle:
             X, Y = shuffle(X, Y)
-        return X, Y
+        return np.array(X), np.array(Y)
 
 
 class LR:
@@ -99,6 +101,7 @@ class LR:
         best_report = None
         best_model = None
         best_f1 = .0
+        log = []
         for params in params_list:
             clf = self.build_model(params)
             clf.fit(train_X, train_Y)
@@ -106,6 +109,7 @@ class LR:
             report = classification_report(val_Y, pred, digits=5)
             print("params: {}  ---  val report:\n{}\n".format(params, report))
             f1 = f1_score(val_Y, pred)
+            log.append((params, f1))
             if f1 > best_f1:
                 best_f1 = f1
                 best_report = report
@@ -113,6 +117,9 @@ class LR:
                 best_model = clf
         print("Final result:\nbest params:\n{}\nbest report:\n{}\n".format(best_params, best_report))
         joblib.dump(best_model, os.path.join(self.model_dir, "lr.pkl"))
+        log = sorted(log, key=lambda x: x[1], reverse=True)
+        with open("lr_log_{}.txt".format(time.time()), "w", encoding="utf-8") as f:
+            json.dump(log, f, ensure_ascii=False)
 
 
 class RF:
@@ -146,6 +153,7 @@ class RF:
         best_report = None
         best_model = None
         best_f1 = .0
+        log = []
         for params in params_list:
             clf = self.build_model(params)
             clf.fit(train_X, train_Y)
@@ -153,6 +161,7 @@ class RF:
             report = classification_report(val_Y, pred, digits=5)
             print("params: {}  ---  val report:\n{}\n".format(params, report))
             f1 = f1_score(val_Y, pred)
+            log.append((params, f1))
             if f1 > best_f1:
                 best_f1 = f1
                 best_report = report
@@ -160,6 +169,9 @@ class RF:
                 best_model = clf
         print("Final result:\nbest params:\n{}\nbest report:\n{}\n".format(best_params, best_report))
         joblib.dump(best_model, os.path.join(self.model_dir, "rf.pkl"))
+        log = sorted(log, key=lambda x: x[1], reverse=True)
+        with open("rf_log_{}.txt".format(time.time()), "w", encoding="utf-8") as f:
+            json.dump(log, f, ensure_ascii=False)
 
 
 class XGB:
@@ -194,6 +206,7 @@ class XGB:
         best_report = None
         best_model = None
         best_f1 = .0
+        log = []
         for params in params_list:
             clf = self.build_model(params)
             clf.fit(train_X, train_Y)
@@ -201,6 +214,7 @@ class XGB:
             report = classification_report(val_Y, pred, digits=5)
             print("params: {}  ---  val report:\n{}\n".format(params, report))
             f1 = f1_score(val_Y, pred)
+            log.append((params, f1))
             if f1 > best_f1:
                 best_f1 = f1
                 best_report = report
@@ -208,6 +222,9 @@ class XGB:
                 best_model = clf
         print("Final result:\nbest params:\n{}\nbest report:\n{}\n".format(best_params, best_report))
         joblib.dump(best_model, os.path.join(self.model_dir, "xgb.pkl"))
+        log = sorted(log, key=lambda x: x[1], reverse=True)
+        with open("xgb_log_{}.txt".format(time.time()), "w", encoding="utf-8") as f:
+            json.dump(log, f, ensure_ascii=False)
 
 
 def stacking(model_dir, train_X, train_Y, val_X, val_Y):
@@ -267,13 +284,13 @@ def main(mode=0):
     val_X, val_Y = val_data_loader.load()
     if mode == 0:
         # LR
-        print("************* LR *************")
-        lr = LR(model_dir)
-        lr.grid_search(train_X, train_Y, val_X, val_Y)
-        # RF
-        print("************* RF *************")
-        rf = RF(model_dir)
-        rf.grid_search(train_X, train_Y, val_X, val_Y)
+        # print("************* LR *************")
+        # lr = LR(model_dir)
+        # lr.grid_search(train_X, train_Y, val_X, val_Y)
+        # # RF
+        # print("************* RF *************")
+        # rf = RF(model_dir)
+        # rf.grid_search(train_X, train_Y, val_X, val_Y)
         # XGB
         print("************* XGB *************")
         xgb = XGB(model_dir)

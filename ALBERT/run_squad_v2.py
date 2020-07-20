@@ -331,7 +331,7 @@ def main(_):
         with tf.gfile.Open(FLAGS.predict_file) as predict_file:
             prediction_json = json.load(predict_file)["data"]
         eval_examples = squad_utils.read_squad_examples(
-            input_file=FLAGS.predict_file, is_training=False)
+            input_file=FLAGS.predict_file, is_training=True)
 
         if (tf.gfile.Exists(FLAGS.predict_feature_file) and tf.gfile.Exists(
                 FLAGS.predict_feature_left_file)):

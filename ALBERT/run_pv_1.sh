@@ -19,7 +19,7 @@ predict_feature_left_file_gs=${features_dir_gs}"/"${predict_feature_left_file}
 init_checkpoint_gs=${gs_data_root}"/albert_xxlarge/"${init_checkpoint}
 spm_model_file_driver=${spm_model_file}
 
-python run_squad_v2.py \
+python3 run_squad_v2.py \
   --albert_config_file=$albert_config_file_gs \
   --output_dir=$output_dir_gs \
   --train_file=$train_file_gs \

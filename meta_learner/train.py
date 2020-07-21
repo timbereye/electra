@@ -70,7 +70,7 @@ class DataLoader(object):
 
         if do_shuffle:
             X, Y = shuffle(X, Y)
-        return np.array(X), np.array(Y)
+        return np.array(X), np.array(Y), keys
 
 
 class LR:
@@ -87,7 +87,7 @@ class LR:
         clf.fit(X, Y)
         joblib.dump(clf, os.path.join(self.model_dir, "lr.pkl"))
 
-    def grid_search(self, train_X, train_Y, val_X, val_Y):
+    def grid_search(self, train_X, train_Y, val_X, val_Y, keys_pred):
         grid = {
             "solver": ["liblinear", "lbfgs", "newton-cg", "sag"],
             "C": [0.01, 0.1, 1, 10, 100],
@@ -120,6 +120,8 @@ class LR:
         log = sorted(log, key=lambda x: x[1], reverse=True)
         with open("lr_log_{}.txt".format(time.time()), "w", encoding="utf-8") as f:
             json.dump(log, f, ensure_ascii=False)
+        with open("lr_best_pred.txt", "w", encoding="utf-8") as f:
+            json.dump(best_pred(best_model, val_X, keys_pred), f, ensure_ascii=False)
 
 
 class RF:
@@ -136,11 +138,11 @@ class RF:
         clf.fit(X, Y)
         joblib.dump(clf, os.path.join(self.model_dir, "rf.pkl"))
 
-    def grid_search(self, train_X, train_Y, val_X, val_Y):
+    def grid_search(self, train_X, train_Y, val_X, val_Y, keys_pred):
         grid = {
             "n_estimators": [100, 500],
             "max_depth": [None, 3, 5],
-            "min_samples_split": [7, 10, 15, 20],
+            "min_samples_split": [10, 15, 20],
             "min_samples_leaf": [7, 10, 15],
             "class_weight": [{0: 1, 1: 3}, {0:1, 1:5}, {0:1, 1:7}],
         }
@@ -172,6 +174,8 @@ class RF:
         log = sorted(log, key=lambda x: x[1], reverse=True)
         with open("rf_log_{}.txt".format(time.time()), "w", encoding="utf-8") as f:
             json.dump(log, f, ensure_ascii=False)
+        with open("rf_best_pred.txt", "w", encoding="utf-8") as f:
+            json.dump(best_pred(best_model, val_X, keys_pred), f, ensure_ascii=False)
 
 
 class XGB:
@@ -188,20 +192,20 @@ class XGB:
         clf.fit(X, Y)
         joblib.dump(clf, os.path.join(self.model_dir, "xgb.pkl"))
 
-    def grid_search(self, train_X, train_Y, val_X, val_Y):
+    def grid_search(self, train_X, train_Y, val_X, val_Y, keys_pred):
         grid = {
-            "n_estimators": [100, 500],
-            "max_depth": [3, 5, 7, 10],
+            "n_estimators": [100, 500, 1000],
+            "max_depth": [3, 5, 7],
             "learning_rate": [0.001, 0.01, 0.1],
             "scale_pos_weight": [3, 5, 7],
             "gamma": [0],
-            "max_delta_step": [5, 10, 20],
+            # "max_delta_step": [5, 10, 20],
         }
         params_list = []
-        for v1, v2, v3, v4, v5, v6 in itertools.product(grid["n_estimators"], grid["max_depth"], grid["learning_rate"],
-                                                        grid["scale_pos_weight"], grid["gamma"], grid["max_delta_step"]):
+        for v1, v2, v3, v4, v5 in itertools.product(grid["n_estimators"], grid["max_depth"], grid["learning_rate"],
+                                                        grid["scale_pos_weight"], grid["gamma"]):
             params_list.append({"n_estimators": v1, "max_depth": v2, "learning_rate": v3, "scale_pos_weight": v4,
-                                "gamma": v5, "max_delta_step": v6})
+                                "gamma": v5})
         best_params = None
         best_report = None
         best_model = None
@@ -225,9 +229,11 @@ class XGB:
         log = sorted(log, key=lambda x: x[1], reverse=True)
         with open("xgb_log_{}.txt".format(time.time()), "w", encoding="utf-8") as f:
             json.dump(log, f, ensure_ascii=False)
+        with open("xgb_best_pred.txt", "w", encoding="utf-8") as f:
+            json.dump(best_pred(best_model, val_X, keys_pred), f, ensure_ascii=False)
 
 
-def stacking(model_dir, train_X, train_Y, val_X, val_Y):
+def stacking(model_dir, train_X, train_Y, val_X, val_Y, keys_pred):
     estimators = [
         ("rl", LogisticRegression()),
         ("rf", RandomForestClassifier()),
@@ -262,42 +268,52 @@ def stacking(model_dir, train_X, train_Y, val_X, val_Y):
     joblib.dump(best_model, os.path.join(model_dir, "stk.pkl"))
 
 
+def best_pred(model, X, keys):
+    pred = model.predict_prob(X)[:, 1]
+    ret = {}
+    for i, key in enumerate(keys):
+        ret[key] = pred[i]
+    return ret
+
+
 def main(mode=0):
     model_dir = "./models/"
     pred_files_pattern_train = [
         "./data/bs32_seq384_lr5e-05_ep2.0_train.json",
         "./data/bs32_seq512_lr3e-05_ep3_train.json",
         "./data/bs32_seq512_lr5e-05_ep2.0_train.json",
-        "./data/albert_pv_2_384_2e-5_train.json"
+        "./data/albert_pv_2_384_2e-5_train.json",
+        "./data/albert_pv_2_512_5e-5_train.json"
     ]
     pred_files_pattern_val = [
         "./data/bs32_seq384_lr5e-05_ep2.0_dev.json",
         "./data/bs32_seq512_lr3e-05_ep3_dev.json",
         "./data/bs32_seq512_lr5e-05_ep2.0_dev.json",
-        "./data/albert_pv_2_384_2e-5_dev.json"
+        "./data/albert_pv_2_384_2e-5_dev.json",
+        "./data/albert_pv_2_512_5e-5_dev.json"
 
     ]
     label_file_train = "./data/label_train.json"
     label_file_val = "./data/label_dev.json"
     train_data_loader = DataLoader(tf.gfile.Glob(pred_files_pattern_train), label_file_train)
-    train_X, train_Y = train_data_loader.load(do_shuffle=True)
+    train_X, train_Y, _ = train_data_loader.load(do_shuffle=True)
     val_data_loader = DataLoader(tf.gfile.Glob(pred_files_pattern_val), label_file_val)
-    val_X, val_Y = val_data_loader.load()
+    val_X, val_Y, keys_pred = val_data_loader.load()
     if mode == 0:
         # LR
-        # print("************* LR *************")
-        # lr = LR(model_dir)
-        # lr.grid_search(train_X, train_Y, val_X, val_Y)
-        # # RF
-        # print("************* RF *************")
-        # rf = RF(model_dir)
-        # rf.grid_search(train_X, train_Y, val_X, val_Y)
+        print("************* LR *************")
+        lr = LR(model_dir)
+        lr.grid_search(train_X, train_Y, val_X, val_Y, keys_pred)
+        # RF
+        print("************* RF *************")
+        rf = RF(model_dir)
+        rf.grid_search(train_X, train_Y, val_X, val_Y, keys_pred)
         # XGB
         print("************* XGB *************")
         xgb = XGB(model_dir)
-        xgb.grid_search(train_X, train_Y, val_X, val_Y)
+        xgb.grid_search(train_X, train_Y, val_X, val_Y, keys_pred)
     if mode == 1:
-        stacking(model_dir, train_X, train_Y, val_X, val_Y)
+        stacking(model_dir, train_X, train_Y, val_X, val_Y, keys_pred)
 
 
 if __name__ == '__main__':
@@ -305,30 +321,10 @@ if __name__ == '__main__':
 
 """
 ############## log #################
-Previous acc: [0.9368314663522277, 0.9406215783710941, 0.9393582076981386]
-# LR   - class_weight
-{'solver': 'liblinear', 'C': 1, 'class_weight': {0: 1, 1: 5}}
-best report:
-              precision    recall  f1-score   support
 
-           0    0.93097   0.95783   0.94421      5928
-           1    0.95670   0.92918   0.94274      5945
-
-    accuracy                        0.94349     11873
-   macro avg    0.94384   0.94351   0.94348     11873
-weighted avg    0.94386   0.94349   0.94347     11873
 
 # RF
-{'n_estimators': 100, 'max_depth': 3, 'min_samples_split': 10, 'min_samples_leaf': 7, 'class_weight': {0: 1, 1: 5}}
-best report:
-              precision    recall  f1-score   support
 
-           0    0.93870   0.95057   0.94460      5928
-           1    0.95009   0.93810   0.94405      5945
-
-    accuracy                        0.94433     11873
-   macro avg    0.94439   0.94434   0.94433     11873
-weighted avg    0.94440   0.94433   0.94433     11873
 
 
 

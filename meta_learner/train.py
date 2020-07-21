@@ -268,13 +268,13 @@ def main(mode=0):
         "./data/bs32_seq384_lr5e-05_ep2.0_train.json",
         "./data/bs32_seq512_lr3e-05_ep3_train.json",
         "./data/bs32_seq512_lr5e-05_ep2.0_train.json",
-        "./data/albert_pv_2_512_5e-5_train.json"
+        "./data/albert_pv_2_384_2e-5_train.json"
     ]
     pred_files_pattern_val = [
         "./data/bs32_seq384_lr5e-05_ep2.0_dev.json",
         "./data/bs32_seq512_lr3e-05_ep3_dev.json",
         "./data/bs32_seq512_lr5e-05_ep2.0_dev.json",
-        "./data/albert_pv_2_512_5e-5_dev.json"
+        "./data/albert_pv_2_384_2e-5_dev.json"
 
     ]
     label_file_train = "./data/label_train.json"

@@ -272,7 +272,7 @@ def best_pred(model, X, keys):
     pred = model.predict_proba(X)[:, 1]
     ret = {}
     for i, key in enumerate(keys):
-        ret[key] = pred[i]
+        ret[key] = float(pred[i])
     return ret
 
 
@@ -302,12 +302,12 @@ def main(mode=0):
     if mode == 0:
         # LR
         print("************* LR *************")
-        lr = LR(model_dir)
-        lr.grid_search(train_X, train_Y, val_X, val_Y, keys_pred)
-        # RF
-        print("************* RF *************")
-        rf = RF(model_dir)
-        rf.grid_search(train_X, train_Y, val_X, val_Y, keys_pred)
+        # lr = LR(model_dir)
+        # lr.grid_search(train_X, train_Y, val_X, val_Y, keys_pred)
+        # # RF
+        # print("************* RF *************")
+        # rf = RF(model_dir)
+        # rf.grid_search(train_X, train_Y, val_X, val_Y, keys_pred)
         # XGB
         print("************* XGB *************")
         xgb = XGB(model_dir)

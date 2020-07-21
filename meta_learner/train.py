@@ -269,7 +269,7 @@ def stacking(model_dir, train_X, train_Y, val_X, val_Y, keys_pred):
 
 
 def best_pred(model, X, keys):
-    pred = model.predict_prob(X)[:, 1]
+    pred = model.predict_proba(X)[:, 1]
     ret = {}
     for i, key in enumerate(keys):
         ret[key] = pred[i]

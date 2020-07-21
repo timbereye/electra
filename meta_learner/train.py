@@ -138,11 +138,11 @@ class RF:
 
     def grid_search(self, train_X, train_Y, val_X, val_Y):
         grid = {
-            "n_estimators": [100, 200],
-            "max_depth": [3],
+            "n_estimators": [100, 500],
+            "max_depth": [None, 3, 5],
             "min_samples_split": [7, 10, 15, 20],
-            "min_samples_leaf": [7, 10, 15, 20],
-            "class_weight": [{0:1, 1:5}],
+            "min_samples_leaf": [7, 10, 15],
+            "class_weight": [{0: 1, 1: 3}, {0:1, 1:5}, {0:1, 1:7}],
         }
         params_list = []
         for v1, v2, v3, v4, v5 in itertools.product(grid["n_estimators"], grid["max_depth"], grid["min_samples_split"],
@@ -192,10 +192,10 @@ class XGB:
         grid = {
             "n_estimators": [100, 500],
             "max_depth": [3, 5, 7, 10],
-            "learning_rate": [0.001, 0.01, 0.1, 0.2],
-            "scale_pos_weight": [1, 3, 5, 7],
-            "gamma": [0.001, 0.01, 0.1, 0],
-            "max_delta_step": [0, 5, 10, 20, 30],
+            "learning_rate": [0.001, 0.01, 0.1],
+            "scale_pos_weight": [3, 5, 7],
+            "gamma": [0],
+            "max_delta_step": [5, 10, 20],
         }
         params_list = []
         for v1, v2, v3, v4, v5, v6 in itertools.product(grid["n_estimators"], grid["max_depth"], grid["learning_rate"],
@@ -236,13 +236,12 @@ def stacking(model_dir, train_X, train_Y, val_X, val_Y):
     stk_func = lambda params: StackingClassifier(estimators, final_estimator=LogisticRegression(**params))
     grid = {
         "solver": ["liblinear", "lbfgs", "newton-cg", "sag"],
-        "C": [0.001, 0.01, 0.1, 1, 10, 100, 1000],
-        "class_weight": [None, "balanced", {0: 1, 1: 3}, {0: 3, 1: 1}, {0: 1, 1: 2}, {0: 2, 1: 1}],
-        "max_iter": [100, 500, 1000, 2000]
+        "C": [0.01, 0.1, 1, 10, 100],
+        "class_weight": [{0: 1, 1: 3}, {0: 1, 1: 2}, {0: 1, 1: 5}, {0: 1, 1: 6}],
     }
     params_list = []
-    for v1, v2, v3, v4 in itertools.product(grid["solver"], grid["C"], grid["class_weight"], grid["max_iter"]):
-        params_list.append({"solver": v1, "C": v2, "class_weight": v3, "max_iter": v4})
+    for v1, v2, v3 in itertools.product(grid["solver"], grid["C"], grid["class_weight"]):
+        params_list.append({"solver": v1, "C": v2, "class_weight": v3})
     best_params = None
     best_report = None
     best_model = None
@@ -287,14 +286,14 @@ def main(mode=0):
         # print("************* LR *************")
         # lr = LR(model_dir)
         # lr.grid_search(train_X, train_Y, val_X, val_Y)
-        # RF
-        print("************* RF *************")
-        rf = RF(model_dir)
-        rf.grid_search(train_X, train_Y, val_X, val_Y)
+        # # RF
+        # print("************* RF *************")
+        # rf = RF(model_dir)
+        # rf.grid_search(train_X, train_Y, val_X, val_Y)
         # XGB
-        # print("************* XGB *************")
-        # xgb = XGB(model_dir)
-        # xgb.grid_search(train_X, train_Y, val_X, val_Y)
+        print("************* XGB *************")
+        xgb = XGB(model_dir)
+        xgb.grid_search(train_X, train_Y, val_X, val_Y)
     if mode == 1:
         stacking(model_dir, train_X, train_Y, val_X, val_Y)
 

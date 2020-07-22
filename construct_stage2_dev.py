@@ -24,7 +24,6 @@ def main(bagging_pred_file, dev_file, output_file):
         for d in data["data"]:
             for para in d["paragraphs"]:
                 for qas in para["qas"]:
-                    qas["answers"] = []
                     qas["plausible_answers"] = [{"text": bagging_pred[qas["id"]], "answer_start": 0}]
     json.dump(data, tf.gfile.Open(output_file, 'w'), ensure_ascii=False)
 

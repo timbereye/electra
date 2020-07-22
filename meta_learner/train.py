@@ -50,7 +50,7 @@ class DataLoader(object):
             for i in range(K):
                 x.append(pred_all[i][k])
             X.append(x)
-        print("Samples Num: ".format(len(keys)))
+        print("Samples Num: {}".format(len(keys)))
 
         if self.labels_file:
             with tf.gfile.Open(self.labels_file, "r") as fp:
@@ -139,12 +139,19 @@ class RF:
         joblib.dump(clf, os.path.join(self.model_dir, "rf.pkl"))
 
     def grid_search(self, train_X, train_Y, val_X, val_Y, keys_pred):
+        # grid = {
+        #     "n_estimators": [100, 500],
+        #     "max_depth": [None, 3, 5],
+        #     "min_samples_split": [10, 15, 20],
+        #     "min_samples_leaf": [7, 10, 15],
+        #     "class_weight": [{0: 1, 1: 3}, {0:1, 1:5}, {0:1, 1:7}],
+        # }
         grid = {
-            "n_estimators": [100, 500],
-            "max_depth": [None, 3, 5],
-            "min_samples_split": [10, 15, 20],
-            "min_samples_leaf": [7, 10, 15],
-            "class_weight": [{0: 1, 1: 3}, {0:1, 1:5}, {0:1, 1:7}],
+            "n_estimators": [100, 500, 1000],
+            "max_depth": [3],
+            "min_samples_split": [10, 20, 30, 40, 50, 60],
+            "min_samples_leaf": [10, 15, 20, 25, 30],
+            "class_weight": [{0: 1, 1: 3}],
         }
         params_list = []
         for v1, v2, v3, v4, v5 in itertools.product(grid["n_estimators"], grid["max_depth"], grid["min_samples_split"],
@@ -235,15 +242,23 @@ class XGB:
 
 def stacking(model_dir, train_X, train_Y, val_X, val_Y, keys_pred):
     estimators = [
-        ("rl", LogisticRegression()),
-        ("rf", RandomForestClassifier()),
-        ("xgb", XGBClassifier())
+        ("rl1", LogisticRegression(solver="liblinear", C=0.01, class_weight={0: 1, 1: 2})),
+        ("rf1", RandomForestClassifier(n_estimators=100, max_depth=3, min_samples_split=10, min_samples_leaf=10,
+                                       class_weight={0: 1, 1: 3})),
+        ("rf2", RandomForestClassifier(n_estimators=500, max_depth=3, min_samples_split=20, min_samples_leaf=30,
+                                       class_weight={0: 1, 1: 3})),
+        ("rf3", RandomForestClassifier(n_estimators=100, max_depth=3, min_samples_split=30, min_samples_leaf=25,
+                                       class_weight={0: 1, 1: 3})),
+        ("rf4", RandomForestClassifier(n_estimators=100, max_depth=3, min_samples_split=40, min_samples_leaf=30,
+                                       class_weight={0: 1, 1: 3})),
+        ("xgb1", XGBClassifier(n_estimators=100, max_depth=5, learning_rate=0.1, scale_pos_weight=5)),
+        ("xgb2", XGBClassifier(n_estimators=500, max_depth=3, learning_rate=0.01, scale_pos_weight=3))
     ]
     stk_func = lambda params: StackingClassifier(estimators, final_estimator=LogisticRegression(**params))
     grid = {
-        "solver": ["liblinear", "lbfgs", "newton-cg", "sag"],
-        "C": [0.01, 0.1, 1, 10, 100],
-        "class_weight": [{0: 1, 1: 3}, {0: 1, 1: 2}, {0: 1, 1: 5}, {0: 1, 1: 6}],
+        "solver": ["liblinear", "lbfgs"],
+        "C": [0.01, 0.1],
+        "class_weight": [{0: 1, 1: 3}, {0: 1, 1: 1}, {0: 1, 1: 2}, {0: 1, 1: 5}],
     }
     params_list = []
     for v1, v2, v3 in itertools.product(grid["solver"], grid["C"], grid["class_weight"]):
@@ -256,8 +271,8 @@ def stacking(model_dir, train_X, train_Y, val_X, val_Y, keys_pred):
         clf = stk_func(params)
         clf.fit(train_X, train_Y)
         pred = clf.predict(val_X)
-        report = classification_report(val_Y, pred)
-        print("val report:\n{}\n".format(report))
+        report = classification_report(val_Y, pred, digits=5)
+        print("params: {}  ---  val report:\n{}\n".format(params, report))
         f1 = f1_score(val_Y, pred)
         if f1 > best_f1:
             best_f1 = f1
@@ -266,6 +281,8 @@ def stacking(model_dir, train_X, train_Y, val_X, val_Y, keys_pred):
             best_model = clf
     print("Final result:\nbest params:\n{}\nbest report:\n{}\n".format(best_params, best_report))
     joblib.dump(best_model, os.path.join(model_dir, "stk.pkl"))
+    with open("stk_best_pred.txt", "w", encoding="utf-8") as f:
+        json.dump(best_pred(best_model, val_X, keys_pred), f, ensure_ascii=False)
 
 
 def best_pred(model, X, keys):

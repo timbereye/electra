@@ -242,7 +242,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         answer_tokens = tokenization.encode_ids(
             tokenizer.sp_model,
             tokenization.preprocess_text(
-                example.orig_answer_text or example.plausible_answer_text, lower=do_lower_case))
+                example.plausible_answer_text or example.orig_answer_text, lower=do_lower_case))
 
         if len(answer_tokens) > max_answer_length:
             answer_tokens = answer_tokens[0: max_answer_length]

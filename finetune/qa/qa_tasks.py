@@ -272,7 +272,7 @@ class QATask(task.Task):
         if len(query_tokens) > self.config.max_query_length:
             query_tokens = query_tokens[0:self.config.max_query_length]
 
-        answer_tokens = self._tokenizer.tokenize(example.orig_answer_text or example.plausible_answer_text)
+        answer_tokens = self._tokenizer.tokenize(example.plausible_answer_text or example.orig_answer_text)
 
         if len(answer_tokens) > self.config.max_answer_length:
             answer_tokens = answer_tokens[0:self.config.max_answer_length]

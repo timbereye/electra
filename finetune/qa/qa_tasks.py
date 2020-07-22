@@ -195,7 +195,7 @@ class QATask(task.Task):
             orig_answer_text = None
             is_impossible = False
             plausible_answer_text = None
-            if split:
+            if split == "train":
                 if self.v2:
                     is_impossible = qa["is_impossible"]
                 if not is_impossible:
@@ -240,7 +240,7 @@ class QATask(task.Task):
                     plausible_answer_text = qa["plausible_answers"][0]["text"] if qa[
                         "plausible_answers"] else "it's no answer"
 
-            assert orig_answer_text or plausible_answer_text, f"{orig_answer_text}-{plausible_answer_text}"
+            # assert orig_answer_text or plausible_answer_text, f"{orig_answer_text}-{plausible_answer_text}"
 
             example = QAExample(
                 task_name=self.name,
@@ -272,10 +272,10 @@ class QATask(task.Task):
         if len(query_tokens) > self.config.max_query_length:
             query_tokens = query_tokens[0:self.config.max_query_length]
 
-        answer_tokens = self._tokenizer.tokenize(example.plausible_answer_text or example.orig_answer_text)
+        # answer_tokens = self._tokenizer.tokenize(example.plausible_answer_text or example.orig_answer_text)
 
-        if len(answer_tokens) > self.config.max_answer_length:
-            answer_tokens = answer_tokens[0:self.config.max_answer_length]
+        # if len(answer_tokens) > self.config.max_answer_length:
+        #     answer_tokens = answer_tokens[0:self.config.max_answer_length]
 
         tok_to_orig_index = []
         orig_to_tok_index = []
@@ -303,7 +303,8 @@ class QATask(task.Task):
                 example.orig_answer_text)
 
         # The -3 accounts for [CLS], [SEP] and [SEP]
-        max_tokens_for_doc = self.config.max_seq_length - len(query_tokens) - len(answer_tokens) - 4
+        # max_tokens_for_doc = self.config.max_seq_length - len(query_tokens) - len(answer_tokens) - 4
+        max_tokens_for_doc = self.config.max_seq_length - len(query_tokens) - 3
 
         # We can have documents that are longer than the maximum sequence length.
         # To deal with this we do a sliding window approach, where we take chunks
@@ -327,18 +328,20 @@ class QATask(task.Task):
             token_is_max_context = {}
             segment_ids = []
             tokens.append("[CLS]")
-            segment_ids.append(1)
+            # segment_ids.append(1)
+            segment_ids.append(0)
             for token in query_tokens:
                 tokens.append(token)
                 segment_ids.append(1)
             tokens.append("[SEP]")
-            segment_ids.append(1)
+            # segment_ids.append(1)
+            segment_ids.append(0)
 
-            for token in answer_tokens:
-                tokens.append(token)
-                segment_ids.append(2)
-            tokens.append("[SEP]")
-            segment_ids.append(2)
+            # for token in answer_tokens:
+            #     tokens.append(token)
+            #     segment_ids.append(2)
+            # tokens.append("[SEP]")
+            # segment_ids.append(2)
 
             for i in range(doc_span.length):
                 split_token_index = doc_span.start + i
@@ -348,9 +351,11 @@ class QATask(task.Task):
                                                        split_token_index)
                 token_is_max_context[len(tokens)] = is_max_context
                 tokens.append(all_doc_tokens[split_token_index])
-                segment_ids.append(3)
+                # segment_ids.append(3)
+                segment_ids.append(1)
             tokens.append("[SEP]")
-            segment_ids.append(3)
+            # segment_ids.append(3)
+            segment_ids.append(1)
 
             input_ids = self._tokenizer.convert_tokens_to_ids(tokens)
 

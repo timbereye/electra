@@ -535,10 +535,20 @@ class QATask(task.Task):
                 final_repr = tf.concat([final_repr, start_feature], -1)
                 final_repr = tf.layers.dense(final_repr, 512,
                                              activation=modeling.gelu)
+
+            def focal_loss(pred, y, alpha=0.5, gamma=2):
+                pt = tf.nn.sigmoid(pred)
+                y = tf.cast(y, tf.float32)
+                loss = - alpha * (1 - pt) ** gamma * y * tf.log(pt) - \
+                       (1 - alpha) * pt ** gamma * (1 - y) * tf.log(1 - pt)
+                loss = tf.reduce_mean(loss)
+                return loss
+
             answerable_logit = tf.squeeze(tf.layers.dense(final_repr, 1), -1)
-            answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
-                labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
-                logits=answerable_logit)
+            # answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
+            #     labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
+            #     logits=answerable_logit)
+            answerable_loss = focal_loss(answerable_logit, tf.cast(features[self.name + "_is_impossible"], tf.float32))
             losses += answerable_loss * self.config.answerable_weight
 
         return losses, dict(

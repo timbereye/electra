@@ -379,8 +379,8 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         all_doc_tokens = list(map(_piece_to_id, para_tokens))
 
         # The -3 accounts for [CLS], [SEP] and [SEP]
-        # max_tokens_for_doc = max_seq_length - len(query_tokens) - len(answer_tokens) - 4
-        max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
+        max_tokens_for_doc = max_seq_length - len(query_tokens) - len(answer_tokens) - 4
+        # max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
 
         # We can have documents that are longer than the maximum sequence length.
         # To deal with this we do a sliding window approach, where we take chunks

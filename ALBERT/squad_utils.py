@@ -163,10 +163,10 @@ def read_squad_examples(input_file, is_training):
                     else:
                         start_position = -1
                         orig_answer_text = ""
-                        plausible_answer_text = qa["plausible_answers"][0]["text"] if qa[
-                            "plausible_answers"] else "it's no answer"
 
-                # assert orig_answer_text or plausible_answer_text, f"{orig_answer_text}-{plausible_answer_text}"
+                plausible_answer_text = qa["plausible_answers"][0]["text"]
+
+                assert orig_answer_text or plausible_answer_text, f"{orig_answer_text}-{plausible_answer_text}"
 
                 example = SquadExample(
                     qas_id=qas_id,
@@ -239,13 +239,13 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             tokenizer.sp_model,
             tokenization.preprocess_text(
                 example.question_text, lower=do_lower_case))
-        # answer_tokens = tokenization.encode_ids(
-        #     tokenizer.sp_model,
-        #     tokenization.preprocess_text(
-        #         example.plausible_answer_text or example.orig_answer_text, lower=do_lower_case))
+        answer_tokens = tokenization.encode_ids(
+            tokenizer.sp_model,
+            tokenization.preprocess_text(
+                example.plausible_answer_text, lower=do_lower_case))
 
-        # if len(answer_tokens) > max_answer_length:
-        #     answer_tokens = answer_tokens[0: max_answer_length]
+        if len(answer_tokens) > max_answer_length:
+            answer_tokens = answer_tokens[0: max_answer_length]
 
         if len(query_tokens) > max_query_length:
             query_tokens = query_tokens[0:max_query_length]
@@ -408,25 +408,25 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             cur_tok_end_to_orig_index = []
 
             tokens.append(tokenizer.sp_model.PieceToId("[CLS]"))
-            # segment_ids.append(1)
-            segment_ids.append(0)
+            segment_ids.append(1)
+            # segment_ids.append(0)
             p_mask.append(0)
             for token in query_tokens:
                 tokens.append(token)
                 segment_ids.append(1)
                 p_mask.append(1)
             tokens.append(tokenizer.sp_model.PieceToId("[SEP]"))
-            # segment_ids.append(1)
-            segment_ids.append(0)
+            segment_ids.append(1)
+            # segment_ids.append(0)
             p_mask.append(1)
 
-            # for token in answer_tokens:
-            #     tokens.append(token)
-            #     segment_ids.append(2)
-            #     p_mask.append(1)
-            # tokens.append(tokenizer.sp_model.PieceToId("[SEP]"))
-            # segment_ids.append(2)
-            # p_mask.append(1)
+            for token in answer_tokens:
+                tokens.append(token)
+                segment_ids.append(2)
+                p_mask.append(1)
+            tokens.append(tokenizer.sp_model.PieceToId("[SEP]"))
+            segment_ids.append(2)
+            p_mask.append(1)
 
             for i in range(doc_span.length):
                 split_token_index = doc_span.start + i
@@ -440,12 +440,12 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
                                                        split_token_index)
                 token_is_max_context[len(tokens)] = is_max_context
                 tokens.append(all_doc_tokens[split_token_index])
-                # segment_ids.append(3)
-                segment_ids.append(1)
+                segment_ids.append(3)
+                # segment_ids.append(1)
                 p_mask.append(0)
             tokens.append(tokenizer.sp_model.PieceToId("[SEP]"))
-            # segment_ids.append(3)
-            segment_ids.append(1)
+            segment_ids.append(3)
+            # segment_ids.append(1)
             p_mask.append(1)
 
             paragraph_len = len(tokens)

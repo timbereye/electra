@@ -545,10 +545,10 @@ class QATask(task.Task):
                 return loss
 
             answerable_logit = tf.squeeze(tf.layers.dense(final_repr, 1), -1)
-            # answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
-            #     labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
-            #     logits=answerable_logit)
-            answerable_loss = focal_loss(answerable_logit, tf.cast(features[self.name + "_is_impossible"], tf.float32))
+            answerable_loss = tf.nn.sigmoid_cross_entropy_with_logits(
+                labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
+                logits=answerable_logit)
+            # answerable_loss = focal_loss(answerable_logit, tf.cast(features[self.name + "_is_impossible"], tf.float32))
             losses += answerable_loss * self.config.answerable_weight
 
         return losses, dict(

@@ -238,7 +238,7 @@ class QATask(task.Task):
                     end_position = -1
                     orig_answer_text = ""
 
-            plausible_answer_text = qa["plausible_answers"][0]["text"]
+            plausible_answer_text = qa["plausible_answers"][0]["text"] if qa["plausible_answers"] else None
 
             assert orig_answer_text or plausible_answer_text, f"{orig_answer_text}-{plausible_answer_text}"
 
@@ -272,7 +272,7 @@ class QATask(task.Task):
         if len(query_tokens) > self.config.max_query_length:
             query_tokens = query_tokens[0:self.config.max_query_length]
 
-        answer_tokens = self._tokenizer.tokenize(example.plausible_answer_text)
+        answer_tokens = self._tokenizer.tokenize(example.plausible_answer_text or example.orig_answer_text)
 
         if len(answer_tokens) > self.config.max_answer_length:
             answer_tokens = answer_tokens[0:self.config.max_answer_length]
@@ -541,7 +541,7 @@ class QATask(task.Task):
                 y = tf.cast(y, tf.float32)
                 loss = - alpha * (1 - pt) ** gamma * y * tf.log(pt) - \
                        (1 - alpha) * pt ** gamma * (1 - y) * tf.log(1 - pt)
-                loss = tf.reduce_mean(loss)
+                # loss = tf.reduce_mean(loss)
                 return loss
 
             answerable_logit = tf.squeeze(tf.layers.dense(final_repr, 1), -1)
@@ -549,7 +549,7 @@ class QATask(task.Task):
                 labels=tf.cast(features[self.name + "_is_impossible"], tf.float32),
                 logits=answerable_logit)
             # answerable_loss = focal_loss(answerable_logit, tf.cast(features[self.name + "_is_impossible"], tf.float32))
-            losses += answerable_loss * self.config.answerable_weight
+            losses += answerable_loss
 
         return losses, dict(
             loss=losses,
